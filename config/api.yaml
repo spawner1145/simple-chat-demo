@@ -1,17 +1,16 @@
 llm:
-  model: gemini  #选择使用的模型大类。default为自带免费模型，可选openai、gemini。
+  model: openai  #选择使用的模型大类。default为自带免费模型，可选openai、gemini。
   system: "你是一个有帮助的ai助手"                                                                                                                                   #system为""时生效 默认启动的人设文件名，在data/system/chara文件夹内(目前支持txt,json,酒馆角色卡(图片))
-  func_calling: true  #开启函数调用功能
+  func_calling: false  #开启函数调用功能
   openai:          #兼容所有openai标准接口。https://platform.openai.com/docs/overview
     base_url: "https://api-inference.modelscope.cn/v1" # 后面会补上/chat/completions,前面如果有v1不要忘
     api_keys: 
-      - "111"
-      - "222"
-    model: "gpt-4o"
+      - ""
+    model: "deepseek-ai/DeepSeek-R1"
     temperature: 0.7
     maxOutputTokens: 4096
-    func_calling: true
     使用旧版prompt结构: false
+    COT: false # 展示思维链
   gemini:         #https://ai.google.dev/
     api_keys:  #继续像这样添加apikey
       - "111"

@@ -247,7 +247,7 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
         payload["tool_choice"] = "auto"
     
     logger.info(f"发送非流式请求到: {url}")
-    logger.debug(f"请求内容: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+    print(f"请求内容: {json.dumps(payload, ensure_ascii=False, indent=2)}")
 
     headers = {
         "Content-Type": "application/json",
@@ -283,8 +283,10 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
                 })
                 return await openai_request(history, config, client_id, send_message)
             content = message["content"]
-            return content if content else ""
-        return ""
+            if config.api["llm"]["openai"]["COT"]:
+                content = message["reasoning_content"] + content
+            return content if content else "我会按你说的做"
+        return "错误，请清除记录"
 
 # 统一的非流式请求接口
 async def request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable) -> str:
