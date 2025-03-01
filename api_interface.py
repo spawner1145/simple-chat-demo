@@ -13,18 +13,14 @@ from chara_read import use_folder_chara
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Gemini 文件上传
+# Gemini 文件上传 
 async def upload_to_gemini_media(file_content: bytes, mime_type: str, config) -> str:
     url = f"{config.api['llm']['gemini']['base_url']}/upload/v1beta/files?key={random.choice(config.api['llm']['gemini']['api_keys'])}"
     headers = {
         "Content-Type": mime_type,
         "X-Goog-Upload-Protocol": "raw"
     }
-    if config.api["proxy"]["http_proxy"]:
-        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
-    else:
-        proxies = None
-    async with httpx.AsyncClient(timeout=100, proxies=proxies) as client:
+    async with httpx.AsyncClient(timeout=100) as client:
         response = await client.post(url, headers=headers, content=file_content)
         if response.status_code != 200:
             logger.error(f"文件上传失败: {response.text}")
@@ -68,7 +64,9 @@ async def upload_to_openai_media(file_content: bytes, mime_type: str, config) ->
 
 # Gemini 提示元素构造
 async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], config) -> List[Dict[str, Any]]:
+    logger.info(f"构造提示元素，输入消息列表: {json.dumps(message_list, indent=2)}")
     prompt_elements = []
+
     for item in message_list:
         if item["type"] == "text":
             prompt_elements.append({"text": item["content"]})
@@ -76,14 +74,14 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
             img = Image(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                         byte=item["source"]["byte"] if "byte" in item["source"] else None,
                         mime_type=item["source"].get("mime_type"))
-            prompt_elements.append(await img.to_dict())
+            prompt_elements.append(await img.to_dict())  # 只返回 inline 数据
         elif item["type"] == "audio":
             audio = Audio(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                           byte=item["source"]["byte"] if "byte" in item["source"] else None,
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await audio.to_dict())["inline_data"]["data"]
             if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
-                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"])
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"], config)
                 prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
             else:
                 prompt_elements.append(await audio.to_dict())
@@ -93,7 +91,7 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await video.to_dict())["inline_data"]["data"]
             if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
-                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"])
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"], config)
                 prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
             else:
                 prompt_elements.append(await video.to_dict())
@@ -107,6 +105,8 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                 prompt_elements.append({"fileData": {"mimeType": file.source["mime_type"], "fileUri": file_uri}})
             else:
                 prompt_elements.append(await file.to_dict())
+
+    logger.info(f"生成的提示元素: {json.dumps(prompt_elements, indent=2)}")
     return prompt_elements
 
 # OpenAI 提示元素构造
@@ -195,42 +195,49 @@ async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, 
         proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
     else:
         proxies = None
-    async with httpx.AsyncClient(timeout=30, proxies=proxies) as client:
-        try:
-            response = await client.post(url, json=payload, headers=headers)
-            logger.info(f"POST 返回内容: {response.text}")
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"非流式请求失败，状态码: {e.response.status_code}, 响应内容: {e.response.text}")
-            raise
-        data = response.json()
-        
-        if "error" in data:
-            logger.error(f"API 返回错误: {data['error']['message']}")
-            raise HTTPException(status_code=400, detail=data["error"]["message"])
-        
-        candidate = data["candidates"][0]["content"]
-        parts = candidate.get("parts", [])
-        
-        if config.api["llm"]["gemini"]["func_calling"]:
-            function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
-            if function_calls:
-                history.append({
-                    "role": "model",
-                    "parts": [{"functionCall": fc} for fc in function_calls]
-                })
-                func_responses = await handle_function_calls(function_calls, config, client_id, send_message)
-                history.append({
-                    "role": "function",
-                    "parts": func_responses
-                })
-                return await gemini_request(history, config, client_id, send_message)
-        
-        content = "".join(part["text"] for part in parts if "text" in part)
-        if content:
-            return content
-        else:
-            return "我会按你说的做。"
+    try:
+        async with httpx.AsyncClient(timeout=30, proxies=proxies) as client:
+            try:
+                response = await client.post(url, json=payload, headers=headers)
+                print(f"POST 返回内容: {response.text}")
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"非流式请求失败，状态码: {e.response.status_code}, 响应内容: {e.response.text}")
+                raise
+            data = response.json()
+            
+            if "error" in data:
+                logger.error(f"API 返回错误: {data['error']['message']}")
+                raise HTTPException(status_code=400, detail=data["error"]["message"])
+            
+            candidate = data["candidates"][0]["content"]
+            parts = candidate.get("parts", [])
+            
+            if config.api["llm"]["gemini"]["func_calling"]:
+                function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
+                if function_calls:
+                    history.append({
+                        "role": "model",
+                        "parts": [{"functionCall": fc} for fc in function_calls]
+                    })
+                    func_responses = await handle_function_calls(function_calls, config, client_id, send_message)
+                    history.append({
+                        "role": "function",
+                        "parts": func_responses
+                    })
+                    return await gemini_request(history, config, client_id, send_message)
+            
+            content = "".join(part["text"] for part in parts if "text" in part)
+            if content:
+                return content
+            else:
+                return "我会按你说的做。"
+    except httpx.RequestError as e:
+        logger.error(f"网络请求失败: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"无法连接到 API: {str(e)}")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"API 返回状态错误: {e.response.text}")
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
 
 # OpenAI 非流式请求
 async def openai_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable) -> str:

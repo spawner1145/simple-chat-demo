@@ -150,10 +150,9 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
 
     if not message_list:
         logger.warning(f"客户端 {client_id}: 消息列表为空，跳过处理")
-        await send_message(client_id, [Text("消息为空，无法处理")])
+        await send_message(client_id, [Text("消息为空，无法处理")])  # 默认非流式
         return
 
-    # 处理 WebUI 事件
     event = WebUIEvent(message_list, client_id)
     for listener in webui_listeners:
         try:
@@ -182,10 +181,11 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
     history.append({"role": "user", "parts": current_prompt})
 
     if is_streaming:
-        # 使用 await 获取 AsyncGenerator
+        logger.info(f"客户端 {client_id}: 流式模式，处理用户: {user_id}")
         stream_generator = await stream_request(history, config, client_id, send_message, conversation_history)
-        await send_message(client_id, stream_generator, is_streaming=True)
+        await send_message(client_id, stream_generator, is_streaming=True)  # 流式发送
     else:
+        logger.info(f"客户端 {client_id}: 开始非流式处理，用户: {user_id}")
         try:
             answer = await request(history, config, client_id, send_message)
             if config.api["llm"]["model"] == "gemini":
@@ -195,7 +195,8 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
             conversation_history[user_id] = history[-50:]
             await send_message(client_id, [Text(answer)])
         except Exception as e:
-            await send_message(client_id, [Text(f"处理错误: {str(e)}")])
+            logger.error(f"客户端 {client_id}: 非流式处理错误: {str(e)}")
+            await send_message(client_id, [Text(f"处理错误: {str(e)}")])  # 默认非流式
 
 # 主函数
 def main():
