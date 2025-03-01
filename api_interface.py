@@ -80,21 +80,21 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                           byte=item["source"]["byte"] if "byte" in item["source"] else None,
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await audio.to_dict())["inline_data"]["data"]
-            #if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
-            file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"], config, key)
-            prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
-            #else:
-                #prompt_elements.append(await audio.to_dict())
+            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"], config, key)
+                prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
+            else:
+                prompt_elements.append(await audio.to_dict())
         elif item["type"] == "video":
             video = Video(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                           byte=item["source"]["byte"] if "byte" in item["source"] else None,
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await video.to_dict())["inline_data"]["data"]
-            #if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
-            file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"], config, key)
-            prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
-            #else:
-                #prompt_elements.append(await video.to_dict())
+            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"], config, key)
+                prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
+            else:
+                prompt_elements.append(await video.to_dict())
         elif item["type"] == "file":
             file = CustomFile(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                               byte=item["source"]["byte"] if "byte" in item["source"] else None,
