@@ -17,6 +17,7 @@ from gemini_function_calls import handle_function_calls, TOOLS
 from webui_handlers import webui_listeners, WebUIEvent
 from gemini_api import gemini_request, gemini_stream_request, gemini_prompt_elements_construct, upload_to_gemini_media
 from yamlLoader import YAMLManager
+from webui_handlers import webui_main
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -196,6 +197,7 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
 
 # 主函数
 def main():
+    webui_main(config)
     parser = argparse.ArgumentParser(description="启动 AI 聊天后端服务器")
     parser.add_argument("--port", type=int, default=8000, help="服务器运行的端口号")
     args = parser.parse_args()

@@ -7,6 +7,7 @@ from typing import List, Dict, Any, AsyncGenerator, Callable
 from fastapi import HTTPException
 from gemini_function_calls import handle_function_calls, TOOLS
 from multimodal_classes import Text, Image, CustomFile
+from chara_read import use_folder_chara
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
