@@ -15,9 +15,12 @@ llm:
     COT: true     # 展示思维链
   gemini:         #https://ai.google.dev/
     api_keys:  #继续像这样添加apikey
-      - "111"
-      - "222"
-      - "333"
+      - "AIzaSyDJhLicDrCo2jFC2B4KYoPGrbtnbiNVITc"
+      - "AIzaSyDprcy9Ilvc5nAwNKKd7qByGyVr6nkVtSE"
+      - "AIzaSyDqhXDNxiwS0ly0zKHE0nrvm2vCkl5a06c"
+      - "AIzaSyDX6VQ1UoJsoiN7VUDZN6_UHd4wU9nMf_A"
+      - "AIzaSyCYJEtHw8gfPVzQjfzLMy73Qn6LHKReL84"
+      - "AIzaSyAMtVMc7hKS9koS6GbF8azQUD2A3qf3o5w"
     model: gemini-2.0-flash-001
     base_url: https://gemini-spawner.goutou.art         #后面的/v1/beta什么的会自动填充
     func_calling: true  #开启函数调用功能

@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Gemini 文件上传 
-async def upload_to_gemini_media(file_content: bytes, mime_type: str, config) -> str:
-    url = f"{config.api['llm']['gemini']['base_url']}/upload/v1beta/files?key={random.choice(config.api['llm']['gemini']['api_keys'])}"
+async def upload_to_gemini_media(file_content: bytes, mime_type: str, config, key) -> str:
+    url = f"{config.api['llm']['gemini']['base_url']}/upload/v1beta/files?key={key}"
     headers = {
         "Content-Type": mime_type,
         "X-Goog-Upload-Protocol": "raw"
@@ -34,10 +34,10 @@ async def upload_to_gemini_media(file_content: bytes, mime_type: str, config) ->
         return file_uri
 
 # OpenAI 文件上传
-async def upload_to_openai_media(file_content: bytes, mime_type: str, config) -> str:
+async def upload_to_openai_media(file_content: bytes, mime_type: str, config, key) -> str:
     url = f"{config.api['llm']['openai']['base_url']}/files"
     headers = {
-        "Authorization": f"Bearer {random.choice(config.api['llm']['openai']['api_keys'])}",
+        "Authorization": f"Bearer {key}",
     }
     files = {
         "file": (f"file.{mime_type.split('/')[-1]}", file_content, mime_type),
@@ -63,7 +63,7 @@ async def upload_to_openai_media(file_content: bytes, mime_type: str, config) ->
             raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
 
 # Gemini 提示元素构造
-async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], config) -> List[Dict[str, Any]]:
+async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], config, key) -> List[Dict[str, Any]]:
     logger.info(f"构造提示元素，输入消息列表: {json.dumps(message_list, indent=2)}")
     prompt_elements = []
 
@@ -80,28 +80,28 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                           byte=item["source"]["byte"] if "byte" in item["source"] else None,
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await audio.to_dict())["inline_data"]["data"]
-            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
-                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"], config)
-                prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
-            else:
-                prompt_elements.append(await audio.to_dict())
+            #if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
+            file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"], config, key)
+            prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
+            #else:
+                #prompt_elements.append(await audio.to_dict())
         elif item["type"] == "video":
             video = Video(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                           byte=item["source"]["byte"] if "byte" in item["source"] else None,
                           mime_type=item["source"].get("mime_type"))
             base64_data = (await video.to_dict())["inline_data"]["data"]
-            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
-                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"], config)
-                prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
-            else:
-                prompt_elements.append(await video.to_dict())
+            #if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
+            file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"], config, key)
+            prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
+            #else:
+                #prompt_elements.append(await video.to_dict())
         elif item["type"] == "file":
             file = CustomFile(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                               byte=item["source"]["byte"] if "byte" in item["source"] else None,
                               mime_type=item["source"].get("mime_type"))
             base64_data = (await file.to_dict())["inline_data"]["data"]
             if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
-                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), file.source["mime_type"], config)
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), file.source["mime_type"], config, key)
                 prompt_elements.append({"fileData": {"mimeType": file.source["mime_type"], "fileUri": file_uri}})
             else:
                 prompt_elements.append(await file.to_dict())
@@ -154,17 +154,16 @@ async def openai_prompt_elements_construct(message_list: List[Dict[str, Any]], c
     return prompt_elements
 
 # 统一的提示元素构造接口
-async def prompt_elements_construct(message_list: List[Dict[str, Any]], config) -> List[Dict[str, Any]]:
+async def prompt_elements_construct(message_list: List[Dict[str, Any]], config, api_key) -> List[Dict[str, Any]]:
     model_type = config.api["llm"]["model"]
     if model_type == "openai":
         return await openai_prompt_elements_construct(message_list, config)
     else:  # 默认 gemini
-        return await gemini_prompt_elements_construct(message_list, config)
+        return await gemini_prompt_elements_construct(message_list, config, api_key)
 
 # Gemini 非流式请求
-async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable) -> str:
+async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, api_key) -> str:
     base_url = config.api["llm"]["gemini"]["base_url"]
-    api_key = random.choice(config.api["llm"]["gemini"]["api_keys"])
     model = config.api["llm"]["gemini"]["model"]
     url = f"{base_url}/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
@@ -342,17 +341,16 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
         return "错误，请清除记录"
 
 # 统一的非流式请求接口
-async def request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable) -> str:
+async def request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, api_key) -> str:
     model_type = config.api["llm"]["model"]
     if model_type == "openai":
         return await openai_request(history, config, client_id, send_message)
     else:  # 默认 gemini
-        return await gemini_request(history, config, client_id, send_message)
+        return await gemini_request(history, config, client_id, send_message, api_key)
 
 # Gemini 流式请求
-async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, conversation_history: Dict[str, List[Dict[str, Any]]]) -> AsyncGenerator[str, None]:
+async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, conversation_history: Dict[str, List[Dict[str, Any]]], api_key) -> AsyncGenerator[str, None]:
     base_url = config.api["llm"]["gemini"]["base_url"]
-    api_key = random.choice(config.api["llm"]["gemini"]["api_keys"])
     model = config.api["llm"]["gemini"]["model"]
     url = f"{base_url}/v1beta/models/{model}:streamGenerateContent?key={api_key}"
     if config.api["proxy"]["http_proxy"]:
@@ -613,12 +611,12 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
     return generate()
 
 # 统一的流式请求接口
-async def stream_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, conversation_history: Dict[str, List[Dict[str, Any]]]) -> AsyncGenerator[str, None]:
+async def stream_request(history: List[Dict[str, Any]], config, client_id: str, send_message: Callable, conversation_history: Dict[str, List[Dict[str, Any]]], api_key) -> AsyncGenerator[str, None]:
     model_type = config.api["llm"]["model"]
     if model_type == "openai":
         return await openai_stream_request(history, config, client_id, send_message, conversation_history)
     else:  # 默认 gemini
-        return await gemini_stream_request(history, config, client_id, send_message, conversation_history)
+        return await gemini_stream_request(history, config, client_id, send_message, conversation_history, api_key)
     
 template = """
 <details>

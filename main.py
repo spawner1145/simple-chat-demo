@@ -9,6 +9,7 @@ import uvicorn
 import json
 from typing import List, Dict, Any
 import asyncio
+import random
 
 # 导入模块
 import multimodal_classes
@@ -172,22 +173,23 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
         return
 
     user_id = "default_user"
+    api_key = random.choice(config.api["llm"]["gemini"]["api_keys"])
     if user_id not in conversation_history:
         logger.info(f"客户端 {client_id}: 初始化新对话历史，用户: {user_id}")
         conversation_history[user_id] = []
 
-    current_prompt = await prompt_elements_construct(message_list, config)
+    current_prompt = await prompt_elements_construct(message_list, config, api_key)
     history = conversation_history[user_id]
     history.append({"role": "user", "parts": current_prompt})
 
     if is_streaming:
         logger.info(f"客户端 {client_id}: 流式模式，处理用户: {user_id}")
-        stream_generator = await stream_request(history, config, client_id, send_message, conversation_history)
+        stream_generator = await stream_request(history, config, client_id, send_message, conversation_history, api_key)
         await send_message(client_id, stream_generator, is_streaming=True)  # 流式发送
     else:
         logger.info(f"客户端 {client_id}: 开始非流式处理，用户: {user_id}")
         try:
-            answer = await request(history, config, client_id, send_message)
+            answer = await request(history, config, client_id, send_message, api_key)
             if config.api["llm"]["model"] == "gemini":
                 history.append({"role": "model", "parts": [{"text": answer}]})
             else:
