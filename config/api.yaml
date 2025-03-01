@@ -18,7 +18,7 @@ llm:
       - "333"
     model: gemini-2.0-flash-001
     base_url: https://gemini-spawner.goutou.art         #后面的/v1/beta什么的会自动填充
-    func_calling: false  #开启函数调用功能
+    func_calling: true  #开启函数调用功能
     temperature: 0.7
     maxOutputTokens: 2048
     topK: 40
