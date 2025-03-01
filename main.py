@@ -13,9 +13,9 @@ import asyncio
 # 导入模块
 import multimodal_classes
 from multimodal_classes import Text, download_and_encode_file
-from gemini_function_calls import handle_function_calls, TOOLS
+from function_calls import handle_function_calls, TOOLS
 from webui_handlers import webui_listeners, WebUIEvent
-from gemini_api import gemini_request, gemini_stream_request, gemini_prompt_elements_construct, upload_to_gemini_media
+from api_interface import request, stream_request, prompt_elements_construct, upload_to_gemini_media, upload_to_openai_media
 from yamlLoader import YAMLManager
 from webui_handlers import webui_main
 
@@ -37,6 +37,7 @@ app.add_middleware(
 conversation_history: Dict[str, List[Dict[str, Any]]] = {}
 clients: Dict[str, WebSocket] = {}
 config = YAMLManager(["config/api.yaml"])  # 初始化 config
+model_type = config.api["llm"]["model"]
 
 # 发送消息到 WebSocket 客户端
 async def send_message(client_id: str, message_list: List[Any], is_streaming: bool = False):
@@ -100,7 +101,7 @@ async def send_message(client_id: str, message_list: List[Any], is_streaming: bo
                     combined_messages.append({
                         "type": "file",
                         "source": {
-                            "fileUri": msg_dict["fileData"]["fileUri"],
+                            "fileUri" if model_type == "gemini" else "file_id": msg_dict["fileData"]["fileUri"] if model_type == "gemini" else msg_dict["fileData"]["file_id"],
                             "mime_type": msg_dict["fileData"]["mimeType"],
                             "filename": filename
                         }
@@ -116,7 +117,6 @@ async def send_message(client_id: str, message_list: List[Any], is_streaming: bo
             await clients[client_id].send_text(message_json)
             logger.info(f"客户端 {client_id}: 非流式消息已发送: {message_json}")
     else:
-        # 保留当前的流式消息发送逻辑
         async for chunk in message_list:
             await clients[client_id].send_text(chunk)
             logger.info(f"客户端 {client_id}: 流式数据块已发送: {chunk}")
@@ -165,7 +165,6 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
     first_message = next((item["content"] for item in message_list if item["type"] == "text"), "")
     if first_message.startswith("/"):
         logger.info(f"客户端 {client_id}: 消息以 '/' 开头: {first_message}")
-        # 处理 /clear 命令
         if len(message_list) == 1 and message_list[0].get("type") == "text" and message_list[0].get("content") == "/clear":
             logger.info(f"客户端 {client_id}: 接收到清除命令，清除对话历史")
             conversation_history["default_user"] = []
@@ -177,16 +176,17 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
         logger.info(f"客户端 {client_id}: 初始化新对话历史，用户: {user_id}")
         conversation_history[user_id] = []
 
-    current_prompt = await gemini_prompt_elements_construct(message_list, config)
+    current_prompt = await prompt_elements_construct(message_list, config)
     history = conversation_history[user_id]
     history.append({"role": "user", "parts": current_prompt})
 
     if is_streaming:
-        stream_generator = await gemini_stream_request(history, config, client_id, send_message, conversation_history)
+        # 使用 await 获取 AsyncGenerator
+        stream_generator = await stream_request(history, config, client_id, send_message, conversation_history)
         await send_message(client_id, stream_generator, is_streaming=True)
     else:
         try:
-            answer = await gemini_request(history, config, client_id, send_message)
+            answer = await request(history, config, client_id, send_message)
             history.append({"role": "model", "parts": [{"text": answer}]})
             conversation_history[user_id] = history[-50:]
             await send_message(client_id, [Text(answer)])
@@ -210,6 +210,7 @@ def main():
 # 注入实现
 multimodal_classes.download_and_encode_file = download_and_encode_file
 multimodal_classes.upload_to_gemini_media = upload_to_gemini_media
+multimodal_classes.upload_to_openai_media = upload_to_openai_media
 
 if __name__ == "__main__":
     main()
