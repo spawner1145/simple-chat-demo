@@ -1,5 +1,5 @@
 llm:
-  model: openai  #选择使用的模型大类。default为自带免费模型，可选openai、gemini。
+  model: gemini  #选择使用的模型大类。default为自带免费模型，可选openai、gemini。
   system: "你是一个有帮助的ai助手"
   openai:          #兼容所有openai标准接口。https://platform.openai.com/docs/overview
     base_url: "https://api-inference.modelscope.cn/v1" # 后面会补上/chat/completions,前面如果有v1不要忘
