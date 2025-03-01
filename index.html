@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>聊天界面</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e6e6fa, #d8bfd8, #add8e6);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            transition: background 0.3s ease;
+            overflow: auto;
+        }
+        .sidebar {
+            width: 200px;
+            background-color: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease, background-color 0.3s ease;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .sidebar h2 {
+            color: #6a5acd;
+            margin-bottom: 20px;
+            text-align: center;
+            transition: color 0.3s ease;
+        }
+        .sidebar ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sidebar li {
+            margin-bottom: 10px;
+        }
+        .sidebar a {
+            color: #6a5acd;
+            text-decoration: none;
+            display: block;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+        }
+        .sidebar a:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        #mode-toggle, #clear-chat, #toggle-streaming {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.3);
+            color: #6a5acd;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            margin-top: 20px;
+        }
+        #mode-toggle:hover, #clear-chat:hover, #toggle-streaming:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+        #mode-toggle:active, #clear-chat:active, #toggle-streaming:active {
+            transform: scale(0.95);
+        }
+        .dark-mode #mode-toggle, .dark-mode #clear-chat, .dark-mode #toggle-streaming {
+            background-color: rgba(52, 73, 94, 0.8);
+            color: #ecf0f1;
+        }
+        .dark-mode #mode-toggle:hover, .dark-mode #clear-chat:hover, .dark-mode #toggle-streaming:hover {
+            background-color: rgba(52, 73, 94, 1);
+        }
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border-radius: 10px;
+            margin: 10px;
+            transition: background-color 0.3s ease;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(106, 90, 205, 0.5) transparent;
+        }
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: rgba(106, 90, 205, 0.5);
+            border-radius: 4px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        .server-wrapper { justify-content: flex-start; }
+        .user-wrapper { align-items: flex-end; }
+        .message-with-button {
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+        }
+        .message {
+            padding: 5px 10px;
+            border-radius: 10px;
+            max-width: 40vw;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s ease;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: rgba(106, 90, 205, 0.8);
+            color: white;
+            animation: slideFadeGrowUser 0.3s ease-out;
+        }
+        .user-message.markdown { background-color: rgba(90, 74, 181, 0.8); }
+        @keyframes slideFadeGrowUser {
+            from { opacity: 0; transform: translateX(20px) scale(0.8); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .server-message {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: #333;
+            animation: slideFadeGrow 0.3s ease-out;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .server-message.node {
+            background-color: rgba(230, 230, 250, 0.8);
+            cursor: pointer;
+        }
+        .dark-mode .server-message.node {
+            background-color: rgba(70, 90, 110, 0.8);
+        }
+        @keyframes slideFadeGrow {
+            from { opacity: 0; transform: translateX(-20px) scale(0.8); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .server-message.markdown { background-color: rgba(245, 245, 245, 0.8); }
+        .message.streaming-active {
+            background-color: rgba(245, 245, 245, 0.9);
+            transition: background-color 0.3s ease;
+        }
+        .dark-mode .message.streaming-active {
+            background-color: rgba(70, 90, 110, 0.9);
+        }
+        .message img {
+            max-width: 100%;
+            margin-top: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .media-container {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .media-container video {
+            width: 100%;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .media-container audio {
+            width: 100%;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .audio-interaction {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(245, 245, 245, 0.9);
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .dark-mode .audio-interaction {
+            background-color: rgba(70, 90, 110, 0.9);
+            border: 1px solid #555;
+        }
+        .audio-interaction:hover {
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .audio-icon {
+            width: 24px;
+            height: 24px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6a5acd" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15 9a4 4 0 0 1 0 6"/></svg>') no-repeat center;
+            background-size: contain;
+        }
+        .dark-mode .audio-icon {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#bdc3c7" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15 9a4 4 0 0 1 0 6"/></svg>') no-repeat center;
+            background-size: contain;
+        }
+        .audio-name {
+            flex-grow: 1;
+            color: #333;
+        }
+        .dark-mode .audio-name {
+            color: #ecf0f1;
+        }
+        .file-container {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(245, 245, 245, 0.9);
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background-color 0.3s ease;
+        }
+        .dark-mode .file-container {
+            background-color: rgba(70, 90, 110, 0.9);
+            border: 1px solid #555;
+        }
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6a5acd" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>') no-repeat center;
+            background-size: contain;
+        }
+        .dark-mode .file-icon {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#bdc3c7" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>') no-repeat center;
+            background-size: contain;
+        }
+        .file-name {
+            flex-grow: 1;
+            color: #333;
+        }
+        .dark-mode .file-name {
+            color: #ecf0f1;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .download-btn, .play-pause-btn {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #6a5acd;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.3s ease, opacity 0.3s ease;
+        }
+        .controls button:hover, .download-btn:hover, .play-pause-btn:hover {
+            background-color: #5a4ab5;
+            opacity: 0.9;
+        }
+        .download-md-btn {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #6a5acd;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.3;
+            transition: background-color 0.3s ease, opacity 0.3s ease;
+        }
+        .download-md-btn:hover {
+            background-color: #5a4ab5;
+            opacity: 0.6;
+        }
+        .dark-mode .download-btn, .dark-mode .play-pause-btn, .dark-mode .download-md-btn {
+            background-color: #5a4ab5;
+        }
+        .dark-mode .download-btn:hover, .dark-mode .play-pause-btn:hover, .dark-mode .download-md-btn:hover {
+            background-color: #483d8b;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background-color: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+        .progress {
+            height: 100%;
+            background-color: #6a5acd;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        .message a {
+            color: #483d8b;
+            text-decoration: underline;
+        }
+        .server-message ul, .server-message ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .server-message table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .server-message table, .server-message th, .server-message td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        .server-message pre {
+            background-color: #e0e0e0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            position: relative;
+            margin: 10px 0;
+        }
+        .server-message code {
+            background-color: #e0e0e0;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .dark-mode .server-message pre {
+            background-color: #4a6078;
+            color: #ecf0f1;
+        }
+        .dark-mode .server-message code {
+            background-color: #4a6078;
+            color: #ecf0f1;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #6a5acd;
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+            opacity: 0.3;
+        }
+        .copy-btn:hover {
+            opacity: 0.6;
+        }
+        .streaming-container {
+            display: block;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            position: relative;
+        }
+        .streaming-text {
+            display: inline;
+            opacity: 1;
+            transition: opacity 0.2s ease-in;
+        }
+        .streaming-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background-color: #6a5acd;
+            vertical-align: middle;
+            animation: blink 0.8s step-end infinite;
+            margin-left: 2px;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .input-area {
+            display: flex;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            margin: 10px;
+            transition: background-color 0.3s ease;
+            align-items: center;
+            height: 100px;
+            justify-content: center;
+        }
+        #messageInput {
+            width: 90%;
+            max-width: 1000px;
+            height: 60px;
+            margin-right: 15px;
+            padding: 12px 20px;
+            border-radius: 25px;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            outline: none;
+            background-color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            transition: box-shadow 0.3s ease, background-color 0.3s ease;
+            overflow-y: auto;
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(106, 90, 205, 0.5) transparent;
+            position: relative;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: hidden;
+            color: #333;
+        }
+        #messageInput:empty::before {
+            content: '输入消息...';
+            color: #999;
+            pointer-events: none;
+        }
+        #messageInput::-webkit-scrollbar {
+            width: 8px;
+        }
+        #messageInput::-webkit-scrollbar-thumb {
+            background-color: rgba(106, 90, 205, 0.5);
+            border-radius: 4px;
+        }
+        #messageInput::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+        }
+        .input-area button {
+            padding: 12px 25px;
+            border-radius: 25px;
+            border: none;
+            background-color: rgba(106, 90, 205, 0.8);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+            font-size: 16px;
+            font-weight: 500;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .input-area button:hover {
+            background-color: rgba(106, 90, 205, 1);
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .input-area button:active {
+            transform: scale(0.95);
+        }
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            background-color: rgba(106, 90, 205, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin: 2px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .file-chip .file-name {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-chip .delete-btn {
+            margin-left: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: white;
+            padding: 0;
+            line-height: 1;
+        }
+        .file-chip .delete-btn:hover {
+            color: #ff6666;
+        }
+        body.dark-mode {
+            background: linear-gradient(135deg, #2c3e50, #34495e, #7f8c8d);
+        }
+        .dark-mode .sidebar {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        .dark-mode .sidebar h2 {
+            color: #bdc3c7;
+        }
+        .dark-mode .sidebar a {
+            color: #bdc3c7;
+        }
+        .dark-mode .sidebar a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .dark-mode .chat-container {
+            background-color: rgba(0, 0, 0, 0.1);
+            scrollbar-color: rgba(142, 68, 173, 0.5) transparent;
+        }
+        .dark-mode .chat-container::-webkit-scrollbar-thumb {
+            background-color: rgba(142, 68, 173, 0.5);
+        }
+        .dark-mode .user-message {
+            background-color: rgba(142, 68, 173, 0.8);
+        }
+        .dark-mode .user-message.markdown {
+            background-color: rgba(120, 60, 150, 0.8);
+        }
+        .dark-mode .server-message {
+            background-color: rgba(52, 73, 94, 0.8);
+            color: #ecf0f1;
+        }
+        .dark-mode .server-message.markdown {
+            background-color: rgba(70, 90, 110, 0.8);
+        }
+        .dark-mode .input-area {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        .dark-mode #messageInput {
+            background-color: rgba(52, 73, 94, 0.8);
+            color: #ecf0f1;
+            scrollbar-color: rgba(142, 68, 173, 0.5) transparent;
+        }
+        .dark-mode #messageInput::-webkit-scrollbar-thumb {
+            background-color: rgba(142, 68, 173, 0.5);
+        }
+        .dark-mode #messageInput:empty::before {
+            color: #bbb;
+        }
+        .dark-mode .message a {
+            color: #bdc3c7;
+        }
+        .dark-mode .progress-bar {
+            background-color: #555;
+        }
+        .dark-mode .progress {
+            background-color: #bdc3c7;
+        }
+        .dark-mode .file-chip {
+            background-color: rgba(142, 68, 173, 0.8);
+        }
+        @media (max-width: 1024px) {
+            .sidebar { width: 60px; }
+            .sidebar h2 { display: none; }
+            .sidebar a { text-align: center; }
+            .sidebar a span { display: none; }
+            #mode-toggle, #clear-chat, #toggle-streaming { text-align: center; }
+            .input-area { flex-wrap: wrap; justify-content: center; }
+            .button-container { margin-top: 10px; }
+            #messageInput { width: 100%; margin-right: 0; }
+            .message { max-width: 80vw; }
+        }
+        .modal, .node-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            overflow: auto;
+        }
+        .modal.show, .node-modal.show {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-content, .node-modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow: auto;
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        .modal.show .modal-content, .node-modal.show .node-modal-content {
+            transform: scale(1);
+        }
+        .dark-mode .modal-content, .dark-mode .node-modal-content {
+            background-color: #34495e;
+            color: #ecf0f1;
+        }
+        .modal-content img, .node-modal-content img {
+            max-width: 100%;
+            max-height: 60vh;
+            display: block;
+            margin: 0 auto;
+        }
+        .modal-content video, .node-modal-content video,
+        .modal-content audio, .node-modal-content audio {
+            max-width: 100%;
+            max-height: 60vh;
+            display: block;
+            margin: 0 auto;
+        }
+        .modal-controls, .node-modal-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .modal-controls button, .node-modal-controls button {
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: none;
+            background-color: #6a5acd;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .modal-controls button:hover, .node-modal-controls button:hover {
+            background-color: #5a4ab5;
+        }
+        .close-btn, .node-modal-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: #333;
+            transition: opacity 0.3s ease;
+        }
+        .close-btn:hover, .node-modal-close-btn:hover {
+            opacity: 0.7;
+        }
+        .dark-mode .close-btn, .dark-mode .node-modal-close-btn {
+            color: #ecf0f1;
+        }
+        .drag-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(106, 90, 205, 0.2);
+            border: 4px dashed #6a5acd;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+            z-index: 999;
+            animation: borderPulse 1.5s infinite;
+        }
+        .drag-overlay.active {
+            opacity: 1;
+            transform: scale(0.98);
+            backdrop-filter: blur(3px);
+            pointer-events: all;
+        }
+        @keyframes borderPulse {
+            0% { border-color: #6a5acd; }
+            50% { border-color: rgba(106, 90, 205, 0.5); }
+            100% { border-color: #6a5acd; }
+        }
+        .drag-overlay::before {
+            content: "松开以上传文件";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #6a5acd;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            animation: textFade 1s infinite;
+        }
+        @keyframes textFade {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .dark-mode .drag-overlay {
+            background-color: rgba(142, 68, 173, 0.2);
+            border-color: #bdc3c7;
+        }
+        .dark-mode .drag-overlay::before {
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>菜单</h2>
+        <ul>
+            <li><a href="#">首页</a></li>
+            <li><a href="#">设置</a></li>
+            <li><a href="#">关于</a></li>
+        </ul>
+        <button id="mode-toggle" onclick="toggleMode()">切换到黑夜模式</button>
+        <button id="clear-chat" onclick="clearChat()">清除记录</button>
+        <button id="toggle-streaming" onclick="toggleStreaming()">开启流式输出</button>
+    </div>
+    <div class="main-content">
+        <div class="chat-container" id="chatContainer"></div>
+        <div class="input-area">
+            <div id="messageInput" contenteditable="true"></div>
+            <input type="file" id="fileInput" style="display: none;" multiple accept="image/*,video/*,audio/*,.pdf">
+            <div class="button-container">
+                <button onclick="document.getElementById('fileInput').click()">上传文件</button>
+                <button onclick="sendMessage()">发送</button>
+            </div>
+        </div>
+    </div>
+    <div id="mediaModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal()">×</button>
+            <div id="modalMedia"></div>
+            <div class="modal-controls" id="modalControls"></div>
+        </div>
+    </div>
+    <div id="nodeModal" class="node-modal">
+        <div class="node-modal-content">
+            <button class="node-modal-close-btn" onclick="closeNodeModal()">×</button>
+            <div id="nodeModalContent"></div>
+        </div>
+    </div>
+    <div id="dragOverlay" class="drag-overlay"></div>
+    <script>
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            langPrefix: 'language-'
+        });
+
+        let BASE_URL = 'ws://127.0.0.1:8000';
+        (function configurePort() {
+            const port = prompt('请输入后端端口号（默认8000）：', '8000');
+            const parsedPort = port ? parseInt(port) : 8000;
+            if (!isNaN(parsedPort) && parsedPort >= 1 && parsedPort <= 65535) {
+                BASE_URL = `ws://127.0.0.1:${parsedPort}`;
+            } else {
+                alert('端口无效，使用默认端口8000');
+            }
+            console.log(`WebSocket URL配置为: ${BASE_URL}`);
+        })();
+
+        let ws;
+        let currentStreamContent = '';
+        let currentStreamBubble = null;
+        let isStreaming = false;
+        let isStreamingEnabled = false;
+        let uploadedFiles = [];
+        const inputBox = document.getElementById('messageInput');
+        const dragOverlay = document.getElementById('dragOverlay');
+
+        async function initWebSocket() {
+            ws = new WebSocket(`${BASE_URL}/ws`);
+            ws.onopen = () => {
+                console.log("WebSocket 已连接");
+                addServerMessage("已连接到服务器");
+            };
+            ws.onmessage = async (event) => {
+                const data = event.data;
+                console.log("收到 WebSocket 消息:", data);
+                if (data.startsWith('data: ')) {
+                    await handleStreamingMessage(data); // 处理流式消息
+                } else {
+                    try {
+                        const messageData = JSON.parse(data);
+                        console.log("解析后的非流式消息:", messageData);
+                        renderServerMessage(messageData); // 处理非流式消息
+                    } catch (e) {
+                        console.error("解析非流式消息失败:", e, "原始数据:", data);
+                        addServerMessage(`解析错误: ${e.message}`);
+                    }
+                }
+            };
+            ws.onerror = (error) => {
+                console.error("WebSocket 错误:", error);
+                addServerMessage("WebSocket 连接错误，请刷新页面重试");
+            };
+            ws.onclose = () => {
+                console.log("WebSocket 已断开，尝试重连...");
+                addServerMessage("WebSocket 已断开，正在尝试重连...");
+                setTimeout(initWebSocket, 1000);
+            };
+        }
+        initWebSocket();
+
+        (function initMode() {
+            if (localStorage.getItem('dark-mode') === 'true') {
+                document.body.classList.add('dark-mode');
+                document.getElementById('mode-toggle').textContent = '切换到白天模式';
+            }
+        })();
+
+        inputBox.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'Enter') {
+                sendMessage();
+                event.preventDefault();
+            } else if (event.key === 'Enter' && !event.ctrlKey) {
+                event.preventDefault();
+                const br = document.createElement('br');
+                const range = window.getSelection().getRangeAt(0);
+                range.insertNode(br);
+                range.setStartAfter(br);
+                range.setEndAfter(br);
+            }
+        });
+
+        inputBox.addEventListener('paste', async (event) => {
+            event.preventDefault();
+            inputBox.focus();
+            const items = event.clipboardData.items;
+            let text = event.clipboardData.getData('text');
+            if (text) {
+                pasteToInputBox(text);
+            }
+            for (let item of items) {
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    if (file) {
+                        await uploadFile(file);
+                    } else {
+                        console.error('粘贴的文件无效');
+                        addServerMessage('粘贴的文件无效，请使用上传按钮选择文件');
+                    }
+                }
+            }
+        });
+
+        document.getElementById('fileInput').addEventListener('change', async () => {
+            const files = document.getElementById('fileInput').files;
+            for (let file of files) {
+                if (file) {
+                    await uploadFile(file);
+                } else {
+                    console.error('选择的文件无效');
+                    addServerMessage('选择的文件无效，请重新选择');
+                }
+            }
+            document.getElementById('fileInput').value = '';
+        });
+
+        let dragCounter = 0;
+        document.body.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter++;
+            dragOverlay.classList.add('active');
+            console.log("Drag enter, counter:", dragCounter);
+        });
+
+        document.body.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!dragOverlay.classList.contains('active')) {
+                dragOverlay.classList.add('active');
+            }
+        });
+
+        document.body.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter--;
+            if (dragCounter === 0) {
+                dragOverlay.classList.remove('active');
+            }
+            console.log("Drag leave, counter:", dragCounter);
+        });
+
+        document.body.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragOverlay.classList.remove('active');
+            dragCounter = 0;
+            const files = e.dataTransfer.files;
+            for (let file of files) {
+                await uploadFile(file);
+            }
+            console.log("File dropped, uploading...");
+        });
+
+        async function uploadFile(file) {
+            if (!file) {
+                console.error('文件无效');
+                addServerMessage('文件无效，请重新上传');
+                return;
+            }
+
+            inputBox.focus();
+            const placeholder = document.createElement('span');
+            placeholder.textContent = `${file.name} 上传中...`;
+            const placeholderNode = pasteToInputBox(placeholder);
+
+            try {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const base64Data = e.target.result.split(',')[1];
+                    const mimeType = file.type || "application/octet-stream";
+                    uploadedFiles.push({ file: file, type: mimeType, base64: base64Data });
+
+                    const fileChip = document.createElement('span');
+                    fileChip.classList.add('file-chip');
+                    fileChip.setAttribute('contenteditable', 'false');
+                    fileChip.dataset.fileName = file.name;
+
+                    const fileNameSpan = document.createElement('span');
+                    fileNameSpan.classList.add('file-name');
+                    fileNameSpan.textContent = file.name;
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.classList.add('delete-btn');
+                    deleteBtn.textContent = '×';
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        const fileIndex = uploadedFiles.findIndex(f => f.file.name === file.name);
+                        if (fileIndex !== -1) {
+                            uploadedFiles.splice(fileIndex, 1);
+                        }
+                        fileChip.remove();
+                    };
+
+                    fileChip.onclick = (e) => {
+                        e.stopPropagation();
+                        const uploadedFile = uploadedFiles.find(f => f.file.name === file.name);
+                        if (uploadedFile) {
+                            const { type, base64 } = uploadedFile;
+                            const url = `data:${type};base64,${base64}`;
+                            let previewType = 'file';
+                            if (type.startsWith('image/')) previewType = 'image';
+                            else if (type.startsWith('video/')) previewType = 'video';
+                            else if (type.startsWith('audio/')) previewType = 'audio';
+                            openModal(previewType, url, file.name);
+                        }
+                    };
+
+                    fileChip.appendChild(fileNameSpan);
+                    fileChip.appendChild(deleteBtn);
+
+                    replaceInInputBox(placeholderNode, fileChip);
+                };
+                reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('文件处理失败:', error);
+                const errorText = document.createTextNode(`${file.name} 处理失败: ${error.message}`);
+                replaceInInputBox(placeholderNode, errorText);
+                addServerMessage(`文件处理失败: ${error.message}`);
+            }
+        }
+
+        function pasteToInputBox(content) {
+            const input = document.getElementById('messageInput');
+            input.focus();
+            const selection = window.getSelection();
+            if (!selection.rangeCount) {
+                const range = document.createRange();
+                range.selectNodeContents(input);
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            const range = selection.getRangeAt(0);
+            const node = content instanceof Node ? content : document.createTextNode(content);
+            range.deleteContents();
+            range.insertNode(node);
+            range.setStartAfter(node);
+            range.setEndAfter(node);
+            return node;
+        }
+
+        function replaceInInputBox(oldNode, newContent) {
+            const input = document.getElementById('messageInput');
+            input.focus();
+            const range = document.createRange();
+            range.selectNode(oldNode);
+            range.deleteContents();
+            const node = newContent instanceof Node ? newContent : document.createTextNode(newContent);
+            range.insertNode(node);
+            range.setStartAfter(node);
+            range.setEndAfter(node);
+        }
+
+        function getInputContent() {
+            const input = document.getElementById('messageInput');
+            const content = [];
+            let currentText = '';
+            for (const child of input.childNodes) {
+                if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
+                    currentText += child.textContent.trim();
+                } else if (child.nodeName === 'BR') {
+                    if (currentText) {
+                        content.push({ type: 'text', content: currentText });
+                        currentText = '';
+                    }
+                    content.push({ type: 'text', content: '\n' });
+                } else if (child.classList && child.classList.contains('file-chip')) {
+                    if (currentText) {
+                        content.push({ type: 'text', content: currentText });
+                        currentText = '';
+                    }
+                    const fileName = child.dataset.fileName;
+                    const uploadedFile = uploadedFiles.find(f => f.file.name === fileName);
+                    if (uploadedFile) {
+                        const { type, base64 } = uploadedFile;
+                        let msgType = "file";
+                        if (type.startsWith('image/')) msgType = "image";
+                        else if (type.startsWith('video/')) msgType = "video";
+                        else if (type.startsWith('audio/')) msgType = "audio";
+                        content.push({
+                            type: msgType,
+                            source: {
+                                base64: base64,
+                                mime_type: type,
+                                filename: fileName  // 改为 filename，与后端一致
+                            }
+                        });
+                    }
+                }
+            }
+            if (currentText) {
+                content.push({ type: 'text', content: currentText });
+            }
+            return content;
+        }
+
+        function createMediaElementFromBase64(type, base64Data, mimeType, name) {
+            const container = document.createElement('div');
+            container.classList.add('media-container');
+
+            const media = document.createElement(type);
+            media.src = `data:${mimeType};base64,${base64Data}`;
+            media.preload = 'metadata';
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = name;
+            fileNameSpan.style.fontSize = '14px';
+            fileNameSpan.style.color = '#666';
+            fileNameSpan.style.marginBottom = '5px';
+
+            const controls = document.createElement('div');
+            controls.classList.add('controls');
+
+            const playPauseBtn = document.createElement('button');
+            playPauseBtn.textContent = '播放';
+            playPauseBtn.classList.add('play-pause-btn');
+            playPauseBtn.onclick = () => {
+                if (media.paused) {
+                    media.play();
+                    playPauseBtn.textContent = '暂停';
+                } else {
+                    media.pause();
+                    playPauseBtn.textContent = '播放';
+                }
+            };
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载';
+            downloadBtn.classList.add('download-btn');
+            downloadBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = media.src;
+                a.download = name;
+                a.click();
+            };
+
+            const progressBar = document.createElement('div');
+            progressBar.classList.add('progress-bar');
+            const progress = document.createElement('div');
+            progress.classList.add('progress');
+            progressBar.appendChild(progress);
+
+            media.ontimeupdate = () => {
+                const percent = (media.currentTime / media.duration) * 100;
+                progress.style.width = `${percent}%`;
+            };
+
+            progressBar.onmousedown = (e) => {
+                const rect = progressBar.getBoundingClientRect();
+                const updateProgress = (event) => {
+                    const offsetX = event.clientX - rect.left;
+                    const percent = Math.min(Math.max(offsetX / rect.width, 0), 1);
+                    media.currentTime = percent * media.duration;
+                    progress.style.width = `${percent * 100}%`;
+                };
+                updateProgress(e);
+
+                document.onmousemove = (event) => {
+                    updateProgress(event);
+                };
+                document.onmouseup = () => {
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+                };
+            };
+
+            controls.appendChild(playPauseBtn);
+            controls.appendChild(downloadBtn);
+            container.appendChild(fileNameSpan);
+            container.appendChild(media);
+            container.appendChild(progressBar);
+            container.appendChild(controls);
+            return container;
+        }
+
+        function renderMediaFromBase64(base64Data, mimeType, alt = "Media", name = "unnamed_image") {
+            const container = document.createElement('div');
+            container.classList.add('media-container');
+
+            const img = document.createElement('img');
+            img.src = `data:${mimeType};base64,${base64Data}`;
+            img.alt = alt;
+            img.style.maxWidth = "100%";
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = name;
+            fileNameSpan.style.fontSize = '14px';
+            fileNameSpan.style.color = '#666';
+            fileNameSpan.style.marginBottom = '5px';
+
+            img.onclick = () => openModal('image', img.src, name);
+            container.appendChild(fileNameSpan);
+            container.appendChild(img);
+            return container;
+        }
+
+        function createAudioInteraction(base64Data, mimeType, name) {
+            const container = document.createElement('div');
+            container.classList.add('audio-interaction');
+            container.onclick = () => openModal('audio', `data:${mimeType};base64,${base64Data}`, name);
+
+            const icon = document.createElement('div');
+            icon.classList.add('audio-icon');
+
+            const audioName = document.createElement('span');
+            audioName.classList.add('audio-name');
+            audioName.textContent = name;
+
+            container.appendChild(icon);
+            container.appendChild(audioName);
+            return container;
+        }
+
+        function renderFile(base64Data, mimeType, name) {
+            const container = document.createElement('div');
+            container.classList.add('file-container');
+
+            const icon = document.createElement('div');
+            icon.classList.add('file-icon');
+
+            const fileName = document.createElement('span');
+            fileName.classList.add('file-name');
+            fileName.textContent = name;
+
+            const controls = document.createElement('div');
+            controls.classList.add('controls');
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载';
+            downloadBtn.classList.add('download-btn');
+            downloadBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = `data:${mimeType};base64,${base64Data}`;
+                a.download = name;
+                a.click();
+            };
+
+            controls.appendChild(downloadBtn);
+            container.appendChild(icon);
+            container.appendChild(fileName);
+            container.appendChild(controls);
+            return container;
+        }
+
+        function openModal(type, url, name) {
+            const modal = document.getElementById('mediaModal');
+            const modalContent = modal.querySelector('.modal-content');
+            const modalMedia = document.getElementById('modalMedia');
+            const modalControls = document.getElementById('modalControls');
+            modalMedia.innerHTML = '';
+            modalControls.innerHTML = '';
+
+            const fileNameSpan = document.createElement('span');
+            fileNameSpan.textContent = name;
+            fileNameSpan.style.fontSize = '16px';
+            fileNameSpan.style.marginBottom = '10px';
+            fileNameSpan.style.display = 'block';
+            modalMedia.appendChild(fileNameSpan);
+
+            if (type === 'image') {
+                const img = document.createElement('img');
+                img.src = url;
+                modalMedia.appendChild(img);
+            } else if (type === 'video' || type === 'audio') {
+                const media = document.createElement(type);
+                media.src = url;
+                media.controls = true;
+                media.autoplay = false;
+                modalMedia.appendChild(media);
+
+                const playPauseBtn = document.createElement('button');
+                playPauseBtn.textContent = '播放';
+                playPauseBtn.classList.add('play-pause-btn');
+                playPauseBtn.onclick = () => {
+                    if (media.paused) {
+                        media.play();
+                        playPauseBtn.textContent = '暂停';
+                    } else {
+                        media.pause();
+                        playPauseBtn.textContent = '播放';
+                    }
+                };
+                modalControls.appendChild(playPauseBtn);
+
+                const progressBar = document.createElement('div');
+                progressBar.classList.add('progress-bar');
+                const progress = document.createElement('div');
+                progress.classList.add('progress');
+                progressBar.appendChild(progress);
+
+                media.ontimeupdate = () => {
+                    const percent = (media.currentTime / media.duration) * 100;
+                    progress.style.width = `${percent}%`;
+                };
+
+                progressBar.onmousedown = (e) => {
+                    const rect = progressBar.getBoundingClientRect();
+                    const updateProgress = (event) => {
+                        const offsetX = event.clientX - rect.left;
+                        const percent = Math.min(Math.max(offsetX / rect.width, 0), 1);
+                        media.currentTime = percent * media.duration;
+                        progress.style.width = `${percent * 100}%`;
+                    };
+                    updateProgress(e);
+
+                    document.onmousemove = (event) => {
+                        updateProgress(event);
+                    };
+                    document.onmouseup = () => {
+                        document.onmousemove = null;
+                        document.onmouseup = null;
+                    };
+                };
+                modalControls.appendChild(progressBar);
+            }
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载';
+            downloadBtn.classList.add('download-btn');
+            downloadBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                a.click();
+            };
+            modalControls.appendChild(downloadBtn);
+
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('mediaModal');
+            modal.classList.remove('show');
+            modal.addEventListener('transitionend', function handler() {
+                modal.style.display = 'none';
+                modal.removeEventListener('transitionend', handler);
+            }, { once: true });
+        }
+
+        function openNodeModal(messages) {
+            const modal = document.getElementById('nodeModal');
+            const modalContent = modal.querySelector('.node-modal-content');
+            const modalContentDiv = document.getElementById('nodeModalContent');
+            modalContentDiv.innerHTML = '';
+
+            messages.forEach(message => {
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('message-wrapper', 'server-wrapper');
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', 'server-message');
+
+                if (Array.isArray(message)) {
+                    message.forEach(item => {
+                        if (item.type === 'text') {
+                            const htmlContent = marked.parse(item.content);
+                            const textDiv = document.createElement('div');
+                            textDiv.innerHTML = htmlContent;
+                            messageDiv.appendChild(textDiv);
+                        } else if (item.type === 'image') {
+                            const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from server", item.source.name);
+                            messageDiv.appendChild(imgContainer);
+                        } else if (item.type === 'video') {
+                            const videoContainer = createMediaElementFromBase64('video', item.source.base64, item.source.mime_type, item.source.name);
+                            const video = videoContainer.querySelector('video');
+                            video.onclick = () => openModal('video', video.src, item.source.name);
+                            messageDiv.appendChild(videoContainer);
+                        } else if (item.type === 'audio') {
+                            const audioInteraction = createAudioInteraction(item.source.base64, item.source.mime_type, item.source.name);
+                            messageDiv.appendChild(audioInteraction);
+                        } else if (item.type === 'file') {
+                            const fileContainer = renderFile(item.source.base64, item.source.mime_type, item.source.name);
+                            messageDiv.appendChild(fileContainer);
+                        }
+                    });
+                } else {
+                    if (message.type === 'text') {
+                        const htmlContent = marked.parse(message.content);
+                        const textDiv = document.createElement('div');
+                        textDiv.innerHTML = htmlContent;
+                        messageDiv.appendChild(textDiv);
+                    } else if (message.type === 'image') {
+                        const imgContainer = renderMediaFromBase64(message.source.base64, message.source.mime_type, "Image from server", message.source.name);
+                        messageDiv.appendChild(imgContainer);
+                    } else if (message.type === 'video') {
+                        const videoContainer = createMediaElementFromBase64('video', message.source.base64, message.source.mime_type, message.source.name);
+                        const video = videoContainer.querySelector('video');
+                        video.onclick = () => openModal('video', video.src, message.source.name);
+                        messageDiv.appendChild(videoContainer);
+                    } else if (message.type === 'audio') {
+                        const audioInteraction = createAudioInteraction(message.source.base64, message.source.mime_type, message.source.name);
+                        messageDiv.appendChild(audioInteraction);
+                    } else if (message.type === 'file') {
+                        const fileContainer = renderFile(message.source.base64, message.source.mime_type, message.source.name);
+                        messageDiv.appendChild(fileContainer);
+                    }
+                }
+
+                wrapper.appendChild(messageDiv);
+                modalContentDiv.appendChild(wrapper);
+
+                const imgs = messageDiv.getElementsByTagName('img');
+                for (let img of imgs) {
+                    img.onclick = () => openModal('image', img.src, img.parentElement.querySelector('span')?.textContent || img.src.split('/').pop());
+                }
+
+                const pres = messageDiv.getElementsByTagName('pre');
+                for (let pre of pres) {
+                    if (!pre.querySelector('.copy-btn')) {
+                        const codeContent = pre.textContent;
+                        const copyBtn = document.createElement('button');
+                        copyBtn.textContent = '复制';
+                        copyBtn.classList.add('copy-btn');
+                        copyBtn.onclick = () => {
+                            navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                                copyBtn.textContent = '已复制';
+                                setTimeout(() => copyBtn.textContent = '复制', 2000);
+                            });
+                        };
+                        pre.appendChild(copyBtn);
+                    }
+                }
+            });
+
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('show'), 10);
+        }
+
+        function closeNodeModal() {
+            const modal = document.getElementById('nodeModal');
+            modal.classList.remove('show');
+            modal.addEventListener('transitionend', function handler() {
+                modal.style.display = 'none';
+                modal.removeEventListener('transitionend', handler);
+            }, { once: true });
+        }
+
+        document.getElementById('mediaModal').onclick = (e) => {
+            if (e.target.classList.contains('modal')) {
+                closeModal();
+            }
+        };
+        document.getElementById('nodeModal').onclick = (e) => {
+            if (e.target.classList.contains('node-modal')) {
+                closeNodeModal();
+            }
+        };
+
+        function containsMarkdown(content) {
+            return /[!\[]|\[.*?\]\(.*?\)|`{3,}/.test(content);
+        }
+
+        function checkMarkdownAndAddClass(messageDiv) {
+            if (containsMarkdown(messageDiv.textContent || messageDiv.innerText)) {
+                messageDiv.classList.add('markdown');
+            } else {
+                messageDiv.classList.remove('markdown');
+            }
+        }
+
+        function toggleStreaming() {
+            isStreamingEnabled = !isStreamingEnabled;
+            const toggleButton = document.getElementById('toggle-streaming');
+            toggleButton.textContent = isStreamingEnabled ? '关闭流式输出' : '开启流式输出';
+            console.log(`流式输出状态: ${isStreamingEnabled}`);
+        }
+
+        function renderMedia(container, content) {
+            const videoRegex = /\[video\]\((.*?)\)/g;
+            const audioRegex = /\[audio\]\((.*?)\)/g;
+            const pdfRegex = /\[pdf\]\((.*?)\)/g;
+            const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+
+            let match;
+            while ((match = imageRegex.exec(content)) !== null) {
+                const altText = match[1];
+                const url = match[2];
+                if (url.startsWith('data:')) {
+                    const imgContainer = renderMediaFromBase64(url.split(',')[1], url.split(';')[0].split(':')[1], altText, altText || "image");
+                    container.appendChild(imgContainer);
+                }
+            }
+            while ((match = videoRegex.exec(content)) !== null) {
+                const url = match[1];
+                if (url.startsWith('data:')) {
+                    const mimeType = url.split(';')[0].split(':')[1];
+                    const base64Data = url.split(',')[1];
+                    const videoContainer = createMediaElementFromBase64('video', base64Data, mimeType, "video." + mimeType.split('/')[1]);
+                    container.appendChild(videoContainer);
+                }
+            }
+            while ((match = audioRegex.exec(content)) !== null) {
+                const url = match[1];
+                if (url.startsWith('data:')) {
+                    const mimeType = url.split(';')[0].split(':')[1];
+                    const base64Data = url.split(',')[1];
+                    const audioInteraction = createAudioInteraction(base64Data, mimeType, "audio." + mimeType.split('/')[1]);
+                    container.appendChild(audioInteraction);
+                }
+            }
+            while ((match = pdfRegex.exec(content)) !== null) {
+                const url = match[1];
+                if (url.startsWith('data:')) {
+                    const fileContainer = renderFile(url.split(',')[1], 'application/pdf', "document.pdf");
+                    container.appendChild(fileContainer);
+                }
+            }
+        }
+
+        function autoScrollIfAtBottom(container) {
+            const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+            if (isAtBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = getInputContent();
+            if (content.length === 0) return;
+        
+            addUserMessage(content);
+        
+            const messageData = {
+                message: content,
+                isStreaming: isStreamingEnabled
+            };
+            console.log("发送 WebSocket 数据:", messageData);
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(messageData));
+                if (isStreamingEnabled) {
+                    console.log("流式输出已启用，等待后端响应");
+                    currentStreamContent = '';
+                    currentStreamBubble = null;
+                    isStreaming = true; // 确保 isStreaming 状态正确
+                }
+            } else {
+                console.error("WebSocket 未连接");
+                addServerMessage("WebSocket 未连接，请刷新页面重试");
+            }
+        
+            input.innerHTML = '';
+            uploadedFiles = [];
+        }
+
+        function createStreamingBubbleAsync() {
+            return new Promise((resolve) => {
+                console.log("创建流式消息气泡（异步）");
+                try {
+                    const messageWrapper = document.createElement("div");
+                    messageWrapper.classList.add("message-wrapper", "server-wrapper");
+        
+                    const messageWithButton = document.createElement("div");
+                    messageWithButton.classList.add("message-with-button");
+        
+                    const messageDiv = document.createElement("div");
+                    messageDiv.classList.add("message", "server-message", "streaming-active");
+        
+                    const streamingContainer = document.createElement("div");
+                    streamingContainer.classList.add("streaming-container");
+                    streamingContainer.dataset.content = "";
+        
+                    const downloadBtn = document.createElement("button");
+                    downloadBtn.textContent = "下载 MD";
+                    downloadBtn.classList.add("download-md-btn");
+                    downloadBtn.onclick = () => downloadMarkdown(streamingContainer.dataset.content, "response.md");
+        
+                    messageDiv.appendChild(streamingContainer);
+                    messageWithButton.appendChild(messageDiv);
+                    messageWithButton.appendChild(downloadBtn);
+                    messageWrapper.appendChild(messageWithButton);
+        
+                    console.log("流式气泡创建完成（异步）:", messageWrapper);
+                    currentStreamBubble = messageWrapper;
+                    resolve(currentStreamBubble);
+                } catch (error) {
+                    console.error("创建流式气泡错误（异步）:", error);
+                    currentStreamBubble = null;
+                    resolve(null);
+                }
+            });
+        }
+
+        function renderStreamingContent(fullContent) {
+            if (!currentStreamBubble) {
+                console.error("currentStreamBubble 不存在，无法渲染流式内容");
+                return;
+            }
+            const streamingContainer = currentStreamBubble.querySelector(".streaming-container");
+            if (!streamingContainer) {
+                console.error("未找到 streaming-container 元素");
+                return;
+            }
+        
+            // 使用 marked 解析完整内容并重新渲染
+            try {
+                const htmlContent = marked.parse(fullContent);
+                streamingContainer.innerHTML = htmlContent;
+                streamingContainer.dataset.content = fullContent; // 更新 dataset 以供下载
+            } catch (e) {
+                console.error("Markdown 解析错误:", e);
+                streamingContainer.textContent = fullContent; // 降级为纯文本
+            }
+        
+            // 为代码块添加“复制”按钮
+            const pres = streamingContainer.getElementsByTagName("pre");
+            for (let pre of pres) {
+                if (!pre.querySelector(".copy-btn")) {
+                    const codeContent = pre.textContent;
+                    const copyBtn = document.createElement("button");
+                    copyBtn.textContent = "复制";
+                    copyBtn.classList.add("copy-btn");
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                            copyBtn.textContent = "已复制";
+                            setTimeout(() => (copyBtn.textContent = "复制"), 2000);
+                        });
+                    };
+                    pre.appendChild(copyBtn);
+                }
+            }
+        
+            autoScrollIfAtBottom(document.getElementById("chatContainer"));
+        }
+
+        async function handleStreamingMessage(data) {
+            console.log("处理流式消息:", data);
+            const jsonStr = data.slice(6).trim();
+            try {
+                const parsedData = JSON.parse(jsonStr);
+                console.log("解析后的流式数据:", parsedData);
+        
+                if (parsedData.error) {
+                    addServerMessage(`错误: ${parsedData.error}`);
+                    isStreaming = false;
+                    currentStreamBubble = null;
+                    return;
+                }
+        
+                const content = parsedData.content || "";
+                const isStart = parsedData.start_stream === true || 
+                                (typeof parsedData.start_stream === "string" && parsedData.start_stream.toLowerCase() === "true") || 
+                                parsedData.start_stream === 1;
+                const isEnd = parsedData.end_stream === true || 
+                              (typeof parsedData.end_stream === "string" && parsedData.end_stream.toLowerCase() === "true") || 
+                              parsedData.end_stream === 1;
+        
+                if (isStart && !currentStreamBubble) {
+                    console.log("流式开始 - 创建新气泡");
+                    currentStreamContent = "";
+                    currentStreamBubble = await createStreamingBubbleAsync();
+                    if (!currentStreamBubble) {
+                        console.error("创建流式 bubble 失败");
+                        isStreaming = false;
+                        currentStreamBubble = null;
+                        renderFallbackStreamingMessage("流式消息初始化失败，请检查日志");
+                        return;
+                    }
+                    const chatContainer = document.getElementById("chatContainer");
+                    chatContainer.appendChild(currentStreamBubble);
+                    autoScrollIfAtBottom(chatContainer);
+                }
+        
+                if (content && currentStreamBubble) {
+                    console.log("追加流式内容并重新渲染:", content);
+                    currentStreamContent += content;
+                    renderStreamingContent(currentStreamContent); // 传入完整内容以重新渲染
+                }
+        
+                if (isEnd && currentStreamBubble) {
+                    console.log("流式结束");
+                    finalizeStreamingMessage();
+                    isStreaming = false;
+                    currentStreamContent = "";
+                    currentStreamBubble = null;
+                }
+            } catch (e) {
+                console.error("解析流式消息错误:", e, "原始数据:", data);
+                addServerMessage(`解析错误: ${e.message}`);
+                isStreaming = false;
+                currentStreamBubble = null;
+                renderFallbackStreamingMessage(`解析错误: ${e.message}`);
+            }
+        }
+        
+        // 后备渲染函数：如果 currentStreamBubble 失败，直接渲染内容
+        function renderFallbackStreamingMessage(content) {
+            if (!content) return;
+            const chatContainer = document.getElementById("chatContainer");
+            if (!chatContainer) {
+                console.error("未找到 chatContainer 元素，无法渲染后备流式消息");
+                return;
+            }
+        
+            const messageWrapper = document.createElement("div");
+            messageWrapper.classList.add("message-wrapper", "server-wrapper");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("message", "server-message", "streaming-active");
+        
+            const textDiv = document.createElement("div");
+            try {
+                const htmlContent = marked.parse(content);
+                textDiv.innerHTML = htmlContent;
+            } catch (e) {
+                console.error("Markdown 解析错误:", e);
+                textDiv.textContent = content; // 降级为纯文本
+            }
+        
+            messageDiv.appendChild(textDiv);
+            messageWrapper.appendChild(messageDiv);
+            chatContainer.appendChild(messageWrapper);
+            autoScrollIfAtBottom(chatContainer);
+        }
+    
+        function finalizeStreamingMessage() {
+            if (!currentStreamBubble) return;
+        
+            const messageDiv = currentStreamBubble.querySelector(".message");
+            const streamingContainer = currentStreamBubble.querySelector(".streaming-container");
+        
+            messageDiv.classList.remove("streaming-active");
+        
+            // 最终渲染，确保 Markdown 正确
+            try {
+                const finalHtml = marked.parse(currentStreamContent);
+                streamingContainer.innerHTML = finalHtml;
+            } catch (e) {
+                console.error("Markdown 最终渲染错误:", e);
+                streamingContainer.textContent = currentStreamContent; // 降级为纯文本
+            }
+        
+            // 为代码块添加“复制”按钮
+            const pres = streamingContainer.getElementsByTagName("pre");
+            for (let pre of pres) {
+                if (!pre.querySelector(".copy-btn")) {
+                    const codeContent = pre.textContent;
+                    const copyBtn = document.createElement("button");
+                    copyBtn.textContent = "复制";
+                    copyBtn.classList.add("copy-btn");
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                            copyBtn.textContent = "已复制";
+                            setTimeout(() => (copyBtn.textContent = "复制"), 2000);
+                        });
+                    };
+                    pre.appendChild(copyBtn);
+                }
+            }
+        
+            checkMarkdownAndAddClass(messageDiv);
+            autoScrollIfAtBottom(document.getElementById("chatContainer"));
+        }
+    
+        // 非流式消息渲染，确保与流式保持一致
+        function renderServerMessage(data) {
+            const messageWrapper = document.createElement("div");
+            messageWrapper.classList.add("message-wrapper", "server-wrapper");
+            const messageWithButton = document.createElement("div");
+            messageWithButton.classList.add("message-with-button");
+        
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("message", "server-message");
+            if (data.some(item => item.type === "node")) {
+                messageDiv.classList.add("node");
+                messageDiv.onclick = () => openNodeModal(data);
+            }
+        
+            let combinedText = "";
+            data.forEach(item => {
+                if (item.type === "text") {
+                    combinedText += item.content;
+                    const htmlContent = marked.parse(combinedText);
+                    const textDiv = document.createElement('div');
+                    textDiv.innerHTML = htmlContent;
+                    messageDiv.appendChild(textDiv);
+                } else if (item.type === "image") {
+                    const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from server", item.source.filename || "unnamed_image");
+                    messageDiv.appendChild(imgContainer);
+                } else if (item.type === "video") {
+                    const videoContainer = createMediaElementFromBase64('video', item.source.base64, item.source.mime_type, item.source.filename || "unnamed_video");
+                    const video = videoContainer.querySelector('video');
+                    video.onclick = () => openModal('video', video.src, item.source.filename || "unnamed_video");
+                    messageDiv.appendChild(videoContainer);
+                } else if (item.type === "audio") {
+                    const audioInteraction = createAudioInteraction(item.source.base64, item.source.mime_type, item.source.filename || "unnamed_audio");
+                    messageDiv.appendChild(audioInteraction);
+                } else if (item.type === "file") {
+                    const fileContainer = renderFile(item.source.base64, item.source.mime_type, item.source.filename || "unnamed_file");
+                    messageDiv.appendChild(fileContainer);
+                }
+            });
+        
+            const pres = messageDiv.getElementsByTagName('pre');
+            for (let pre of pres) {
+                const codeContent = pre.textContent;
+                const copyBtn = document.createElement('button');
+                copyBtn.textContent = '复制';
+                copyBtn.classList.add('copy-btn');
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                        copyBtn.textContent = '已复制';
+                        setTimeout(() => copyBtn.textContent = '复制', 2000);
+                    });
+                };
+                pre.appendChild(copyBtn);
+            }
+        
+            checkMarkdownAndAddClass(messageDiv);
+        
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载 MD';
+            downloadBtn.classList.add('download-md-btn');
+            downloadBtn.onclick = () => downloadMarkdown(combinedText, 'response.md');
+        
+            messageWithButton.appendChild(messageDiv);
+            messageWithButton.appendChild(downloadBtn);
+            messageWrapper.appendChild(messageWithButton);
+            const chatContainer = document.getElementById("chatContainer");
+            chatContainer.appendChild(messageWrapper);
+            autoScrollIfAtBottom(chatContainer);
+        }
+
+        function addUserMessage(content) {
+            const chatContainer = document.getElementById("chatContainer");
+            const messageWrapper = document.createElement("div");
+            messageWrapper.classList.add("message-wrapper", "user-wrapper");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("message", "user-message");
+        
+            content.forEach(item => {
+                if (item.type === 'text') {
+                    const textDiv = document.createElement('div');
+                    const htmlContent = marked.parse(item.content);
+                    textDiv.innerHTML = htmlContent;
+                    messageDiv.appendChild(textDiv);
+                } else if (item.type === 'image') {
+                    const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from user", item.source.filename);
+                    messageDiv.appendChild(imgContainer);
+                } else if (item.type === 'video') {
+                    const videoContainer = createMediaElementFromBase64('video', item.source.base64, item.source.mime_type, item.source.filename);
+                    const video = videoContainer.querySelector('video');
+                    video.onclick = () => openModal('video', video.src, item.source.filename);
+                    messageDiv.appendChild(videoContainer);
+                } else if (item.type === 'audio') {
+                    const audioInteraction = createAudioInteraction(item.source.base64, item.source.mime_type, item.source.filename);
+                    messageDiv.appendChild(audioInteraction);
+                } else if (item.type === 'file') {
+                    const fileContainer = renderFile(item.source.base64, item.source.mime_type, item.source.filename);
+                    messageDiv.appendChild(fileContainer);
+                }
+            });
+        
+            messageWrapper.appendChild(messageDiv);
+            chatContainer.appendChild(messageWrapper);
+            autoScrollIfAtBottom(chatContainer);
+        }
+
+        function downloadMarkdown(content, filename) {
+            const blob = new Blob([content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function toggleMode() {
+            const body = document.body;
+            const toggleButton = document.getElementById('mode-toggle');
+            if (body.classList.contains('dark-mode')) {
+                body.classList.remove('dark-mode');
+                toggleButton.textContent = '切换到黑夜模式';
+                localStorage.setItem('dark-mode', 'false');
+            } else {
+                body.classList.add('dark-mode');
+                toggleButton.textContent = '切换到白天模式';
+                localStorage.setItem('dark-mode', 'true');
+            }
+        }
+
+        async function clearChat() {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    message: [{ type: "text", content: "/clear" }],
+                    isStreaming: false
+                }));
+                document.getElementById('chatContainer').innerHTML = '';
+                currentStreamContent = '';
+                currentStreamBubble = null;
+                isStreaming = false;
+            } else {
+                console.error("WebSocket 未连接，无法清除聊天记录");
+                addServerMessage("WebSocket 未连接，请刷新页面重试");
+            }
+        }
+
+        function addServerMessage(content) {
+            const chatContainer = document.getElementById("chatContainer");
+            const messageWrapper = document.createElement("div");
+            messageWrapper.classList.add("message-wrapper", "server-wrapper");
+            const messageWithButton = document.createElement("div");
+            messageWithButton.classList.add("message-with-button");
+
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("message", "server-message");
+            if (containsMarkdown(content)) {
+                messageDiv.classList.add("markdown");
+            }
+            const htmlContent = marked.parse(content);
+            const textDiv = document.createElement('div');
+            textDiv.innerHTML = htmlContent;
+            messageDiv.appendChild(textDiv);
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载 MD';
+            downloadBtn.classList.add('download-md-btn');
+            downloadBtn.onclick = () => downloadMarkdown(content, 'response.md');
+
+            messageWithButton.appendChild(messageDiv);
+            messageWithButton.appendChild(downloadBtn);
+            messageWrapper.appendChild(messageWithButton);
+
+            renderMedia(messageDiv, content);
+
+            // 为代码块添加“复制”按钮
+            const pres = messageDiv.getElementsByTagName('pre');
+            for (let pre of pres) {
+                if (!pre.querySelector('.copy-btn')) {
+                    const codeContent = pre.textContent;
+                    const copyBtn = document.createElement('button');
+                    copyBtn.textContent = '复制';
+                    copyBtn.classList.add('copy-btn');
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                            copyBtn.textContent = '已复制';
+                            setTimeout(() => copyBtn.textContent = '复制', 2000);
+                        });
+                    };
+                    pre.appendChild(copyBtn);
+                }
+            }
+
+            chatContainer.appendChild(messageWrapper);
+            autoScrollIfAtBottom(chatContainer);
+
+            currentStreamContent = '';
+            currentStreamBubble = null;
+            isStreaming = false;
+        }
+    </script>
+</body>
+</html>
