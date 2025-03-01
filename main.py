@@ -115,6 +115,7 @@ async def send_message(client_id: str, message_list: List[Any], is_streaming: bo
             await clients[client_id].send_text(message_json)
             logger.info(f"客户端 {client_id}: 非流式消息已发送: {message_json}")
     else:
+        # 保留当前的流式消息发送逻辑
         async for chunk in message_list:
             await clients[client_id].send_text(chunk)
             logger.info(f"客户端 {client_id}: 流式数据块已发送: {chunk}")
