@@ -6,7 +6,7 @@ import base64
 from typing import List, Dict, Any, AsyncGenerator, Callable
 from fastapi import HTTPException
 from function_calls import handle_function_calls, TOOLS
-from multimodal_classes import Text, Image, CustomFile
+from multimodal_classes import *
 from chara_read import use_folder_chara
 
 # 配置日志
@@ -69,6 +69,26 @@ async def gemini_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                         byte=item["source"]["byte"] if "byte" in item["source"] else None,
                         mime_type=item["source"].get("mime_type"))
             prompt_elements.append(await img.to_dict())
+        elif item["type"] == "audio":
+            audio = Audio(base64=item["source"]["base64"] if "base64" in item["source"] else None,
+                          byte=item["source"]["byte"] if "byte" in item["source"] else None,
+                          mime_type=item["source"].get("mime_type"))
+            base64_data = (await audio.to_dict())["inline_data"]["data"]
+            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), audio.source["mime_type"])
+                prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
+            else:
+                prompt_elements.append(await audio.to_dict())
+        elif item["type"] == "video":
+            video = Video(base64=item["source"]["base64"] if "base64" in item["source"] else None,
+                          byte=item["source"]["byte"] if "byte" in item["source"] else None,
+                          mime_type=item["source"].get("mime_type"))
+            base64_data = (await video.to_dict())["inline_data"]["data"]
+            if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:
+                file_uri = await upload_to_gemini_media(base64.b64decode(base64_data), video.source["mime_type"])
+                prompt_elements.append({"fileData": {"mimeType": video.source["mime_type"], "fileUri": file_uri}})
+            else:
+                prompt_elements.append(await video.to_dict())
         elif item["type"] == "file":
             file = CustomFile(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                               byte=item["source"]["byte"] if "byte" in item["source"] else None,
@@ -103,6 +123,16 @@ async def openai_prompt_elements_construct(message_list: List[Dict[str, Any]], c
                 prompt_elements.append({
                     "image_url": {"url": f"data:{img.source['mime_type']};base64,{base64_data}"}
                 })
+            elif item["type"] == "audio":
+                audio = Audio(base64=item["source"]["base64"] if "base64" in item["source"] else None,
+                            byte=item["source"]["byte"] if "byte" in item["source"] else None,
+                            mime_type=item["source"].get("mime_type"))
+                base64_data = (await audio.to_dict())["inline_data"]["data"]
+                if len(base64.b64decode(base64_data)) > 20 * 1024 * 1024:  # 示例阈值
+                    file_uri = await upload_to_openai_media(base64.b64decode(base64_data), audio.source["mime_type"],config)
+                    prompt_elements.append({"fileData": {"mimeType": audio.source["mime_type"], "fileUri": file_uri}})
+                else:
+                    prompt_elements.append({"text": f"data:{audio.source['mime_type']};base64,{base64_data}"})
             elif item["type"] == "file":
                 file = CustomFile(base64=item["source"]["base64"] if "base64" in item["source"] else None,
                                   byte=item["source"]["byte"] if "byte" in item["source"] else None,
