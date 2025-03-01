@@ -35,7 +35,7 @@ async def upload_to_gemini_media(file_content: bytes, mime_type: str, config) ->
 
 # OpenAI 文件上传
 async def upload_to_openai_media(file_content: bytes, mime_type: str, config) -> str:
-    url = f"{config.api['llm']['openai']['base_url']}/v1/files"
+    url = f"{config.api['llm']['openai']['base_url']}/files"
     headers = {
         "Authorization": f"Bearer {random.choice(config.api['llm']['openai']['api_keys'])}",
     }
@@ -195,7 +195,7 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
     base_url = config.api["llm"]["openai"]["base_url"]
     api_key = random.choice(config.api["llm"]["openai"]["api_keys"])
     model = config.api["llm"]["openai"]["model"]
-    url = f"{base_url}/v1/chat/completions"
+    url = f"{base_url}/chat/completions"
     
     use_legacy_prompt = config.api["llm"]["openai"].get("使用旧版prompt结构", False)
     messages = []
@@ -409,7 +409,7 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
     base_url = config.api["llm"]["openai"]["base_url"]
     api_key = random.choice(config.api["llm"]["openai"]["api_keys"])
     model = config.api["llm"]["openai"]["model"]
-    url = f"{base_url}/v1/chat/completions"
+    url = f"{base_url}/chat/completions"
     
     use_legacy_prompt = config.api["llm"]["openai"].get("使用旧版prompt结构", False)
     messages = []
