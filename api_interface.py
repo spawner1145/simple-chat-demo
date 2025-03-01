@@ -146,7 +146,7 @@ async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, 
             "responseMimeType": "text/plain"
         }
     }
-    if config.api["llm"]["func_calling"]:
+    if config.api["llm"]["gemini"]["func_calling"]:
         payload["tools"] = [{"function_declarations": TOOLS}]
     
     logger.info(f"发送非流式请求到: {url}")
@@ -170,7 +170,7 @@ async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, 
         candidate = data["candidates"][0]["content"]
         parts = candidate.get("parts", [])
         
-        if config.api["llm"]["func_calling"]:
+        if config.api["llm"]["gemini"]["func_calling"]:
             function_calls = [part["functionCall"] for part in parts if "functionCall" in part]
             if function_calls:
                 history.append({
@@ -242,7 +242,7 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
         "max_tokens": config.api["llm"]["openai"]["maxOutputTokens"],
         "top_p": 0.95,
     }
-    if config.api["llm"]["func_calling"]:
+    if config.api["llm"]["openai"]["func_calling"]:
         payload["tools"] = [{"type": "function", "function": tool} for tool in TOOLS]
         payload["tool_choice"] = "auto"
     
@@ -319,7 +319,7 @@ async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id
             "responseMimeType": "text/plain"
         }
     }
-    if config.api["llm"]["func_calling"]:
+    if config.api["llm"]["gemini"]["func_calling"]:
         payload["tools"] = [{"function_declarations": TOOLS}]
     
     logger.info(f"发送流式请求到: {url}")
@@ -368,7 +368,7 @@ async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id
                                 full_content += content
                                 logger.info(f"解析结果 - 当前块内容: {content}")
                                 yield f"data: {json.dumps({'content': content, 'start_stream': False, 'end_stream': False})}\n\n"
-                            elif "functionCall" in part and config.api["llm"]["func_calling"]:
+                            elif "functionCall" in part and config.api["llm"]["gemini"]["func_calling"]:
                                 function_calls.append(part["functionCall"])
 
                         # 检查是否结束，但不退出循环
@@ -459,7 +459,7 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
         "top_p": 0.95,
         "stream": True
     }
-    if config.api["llm"]["func_calling"]:
+    if config.api["llm"]["openai"]["func_calling"]:
         payload["tools"] = [{"type": "function", "function": tool} for tool in TOOLS]
         payload["tool_choice"] = "auto"
     
