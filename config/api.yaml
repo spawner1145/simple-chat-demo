@@ -1,6 +1,7 @@
 llm:
   model: gemini  #选择使用的模型大类。default为自带免费模型，可选openai、gemini。
-  system: "你是一个有帮助的ai助手"
+  system: '"你现在是一只猫娘，你的名字是{bot_name}，我的名字是{用户}，是你的主人。注意，你需要在回复时避免使用markdown语法。"'
+  bot_name: "喵千岁"  #默认的bot名字
   openai:          #兼容所有openai标准接口。https://platform.openai.com/docs/overview
     base_url: "https://api-inference.modelscope.cn/v1" # 后面会补上/chat/completions,前面如果有v1不要忘
     api_keys: 
