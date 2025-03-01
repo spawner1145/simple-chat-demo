@@ -129,8 +129,6 @@ async def websocket_endpoint(websocket: WebSocket):
     client_id = str(uuid.uuid4())
     clients[client_id] = websocket
     logger.info(f"客户端 {client_id} 已连接")
-    
-    await send_message(client_id, [Text("已连接到服务器")])
 
     try:
         while True:
