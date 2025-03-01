@@ -140,7 +140,8 @@ async def websocket_endpoint(websocket: WebSocket):
         await send_message(client_id, [Text(f"WebSocket 错误: {str(e)}")])
     finally:
         del clients[client_id]
-        logger.info(f"客户端 {client_id} 已断开")
+        logger.info(f"客户端 {client_id} 已断开,正在重连")
+        await websocket_endpoint(websocket)
 
 # 处理 WebSocket 消息
 async def handle_message(client_id: str, message_data: Dict[str, Any]):
@@ -187,7 +188,10 @@ async def handle_message(client_id: str, message_data: Dict[str, Any]):
     else:
         try:
             answer = await request(history, config, client_id, send_message)
-            history.append({"role": "model", "parts": [{"text": answer}]})
+            if config.api["llm"]["model"] == "gemini":
+                history.append({"role": "model", "parts": [{"text": answer}]})
+            else:
+                history.append({"role": "assistant", "parts": [{"text": answer}]})
             conversation_history[user_id] = history[-50:]
             await send_message(client_id, [Text(answer)])
         except Exception as e:

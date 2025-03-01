@@ -20,7 +20,11 @@ async def upload_to_gemini_media(file_content: bytes, mime_type: str, config) ->
         "Content-Type": mime_type,
         "X-Goog-Upload-Protocol": "raw"
     }
-    async with httpx.AsyncClient(timeout=100) as client:
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
+    async with httpx.AsyncClient(timeout=100, proxies=proxies) as client:
         response = await client.post(url, headers=headers, content=file_content)
         if response.status_code != 200:
             logger.error(f"文件上传失败: {response.text}")
@@ -43,7 +47,11 @@ async def upload_to_openai_media(file_content: bytes, mime_type: str, config) ->
         "file": (f"file.{mime_type.split('/')[-1]}", file_content, mime_type),
         "purpose": (None, "assistants")
     }
-    async with httpx.AsyncClient(timeout=100) as client:
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
+    async with httpx.AsyncClient(timeout=100, proxies=proxies) as client:
         try:
             response = await client.post(url, headers=headers, files=files)
             response.raise_for_status()
@@ -183,7 +191,11 @@ async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, 
     logger.debug(f"请求内容: {json.dumps(payload, ensure_ascii=False, indent=2)}")
 
     headers = {"Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=30) as client:
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
+    async with httpx.AsyncClient(timeout=30, proxies=proxies) as client:
         try:
             response = await client.post(url, json=payload, headers=headers)
             logger.info(f"POST 返回内容: {response.text}")
@@ -226,6 +238,10 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
     api_key = random.choice(config.api["llm"]["openai"]["api_keys"])
     model = config.api["llm"]["openai"]["model"]
     url = f"{base_url}/chat/completions"
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
     
     use_legacy_prompt = config.api["llm"]["openai"].get("使用旧版prompt结构", False)
     messages = []
@@ -283,7 +299,7 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=30, proxies=proxies) as client:
         try:
             response = await client.post(url, json=payload, headers=headers)
             logger.info(f"POST 返回内容: {response.text}")
@@ -314,7 +330,7 @@ async def openai_request(history: List[Dict[str, Any]], config, client_id: str, 
                 return await openai_request(history, config, client_id, send_message)
             content = message["content"]
             if config.api["llm"]["openai"]["COT"]:
-                content = message["reasoning_content"] + content
+                content = template.replace("{{reasoning_content}}",message["reasoning_content"]) + content
             return content if content else "我会按你说的做"
         return "错误，请清除记录"
 
@@ -332,6 +348,10 @@ async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id
     api_key = random.choice(config.api["llm"]["gemini"]["api_keys"])
     model = config.api["llm"]["gemini"]["model"]
     url = f"{base_url}/v1beta/models/{model}:streamGenerateContent?key={api_key}"
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
     payload = {
         "contents": history,
         "systemInstruction": {"parts": [{"text": config.api["llm"]["system"] or ""}]},
@@ -363,7 +383,7 @@ async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id
         function_calls = []
         has_finished = False
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30,proxies=proxies) as client:
             async with client.stream("POST", url, json=payload, headers=headers) as response:
                 try:
                     response.raise_for_status()
@@ -442,6 +462,10 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
     api_key = random.choice(config.api["llm"]["openai"]["api_keys"])
     model = config.api["llm"]["openai"]["model"]
     url = f"{base_url}/chat/completions"
+    if config.api["proxy"]["http_proxy"]:
+        proxies = {"http://": config.api["proxy"]["http_proxy"], "https://": config.api["proxy"]["http_proxy"]}
+    else:
+        proxies = None
     
     use_legacy_prompt = config.api["llm"]["openai"].get("使用旧版prompt结构", False)
     messages = []
@@ -506,7 +530,7 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
         is_first_chunk = True
         function_calls = []
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30,proxies=proxies) as client:
             async with client.stream("POST", url, json=payload, headers=headers) as response:
                 try:
                     response.raise_for_status()
@@ -527,7 +551,7 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
                         if data_str == '[DONE]':
                             if full_content:
                                 conversation_history.setdefault("default_user", []).append({
-                                    "role": "model",
+                                    "role": "assistant",
                                     "parts": [{"text": full_content}]
                                 })
                                 logger.info(f"流式响应总内容已写入历史: {full_content}")
@@ -572,7 +596,7 @@ async def openai_stream_request(history: List[Dict[str, Any]], config, client_id
                 # 所有块解析完成后发送结束标志
                 if full_content:
                     conversation_history.setdefault("default_user", []).append({
-                        "role": "model",
+                        "role": "assistant",
                         "parts": [{"text": full_content}]
                     })
                     logger.info(f"流式响应总内容: {full_content}")
@@ -588,3 +612,12 @@ async def stream_request(history: List[Dict[str, Any]], config, client_id: str, 
         return await openai_stream_request(history, config, client_id, send_message, conversation_history)
     else:  # 默认 gemini
         return await gemini_stream_request(history, config, client_id, send_message, conversation_history)
+    
+template = """
+<details>
+<summary>思考过程</summary>
+---
+{{reasoning_content}}
+---
+</details>
+"""

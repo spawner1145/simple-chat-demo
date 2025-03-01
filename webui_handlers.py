@@ -43,10 +43,11 @@ def webui_main(config):
             
     @webui
     async def change_chara(event: WebUIEvent, send_message: Callable):
-        if "/切人设 " in event.plain:
-            file = event.plain.replace("/切人设 ", "")
+        if "/切人设" in event.plain:
+            file = event.plain.replace("/切人设", "")
             await send_message(event.client_id, [Text("正在更换人设...")])
-            chara = await use_folder_chara(file)
+            chara = (await use_folder_chara(file)).replace("{bot_name}", config.api["llm"]["bot_name"]).replace("{用户}", config.api["llm"]["user_name"])
+            print(chara)
             config.api["llm"]["system"] = chara
             config.save_yaml("api")
             await send_message(event.client_id, [Text(f"人设更换完成,已切换为{file}")])
