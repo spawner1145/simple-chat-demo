@@ -447,7 +447,6 @@ body {
 .button-container {
     display: flex;
     gap: 10px;
-    margin-bottom: 5px; /* 与输入框底部对齐 */
 }
 .input-area button {
     padding: 12px 25px;
