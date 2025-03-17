@@ -419,6 +419,7 @@ body {
     overflow-x: hidden;
     color: #333;
     resize: none;
+    margin-right: 15px;
 }
 #messageInput:empty::before {
     content: '输入消息...';
