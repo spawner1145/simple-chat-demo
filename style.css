@@ -394,6 +394,7 @@ body {
     margin: 10px;
     transition: background-color 0.3s ease;
     align-items: center;
+    overflow-y: auto;
     justify-content: center;
 }
 
