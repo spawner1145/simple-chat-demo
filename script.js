@@ -93,48 +93,26 @@ function adjustInputHeight() {
     const input = document.getElementById('messageInput');
     const inputArea = document.querySelector('.input-area');
 
-    // 重置高度以获取真实的scrollHeight
-    input.style.height = 'auto';
-    inputArea.style.height = 'auto';
+    // 第一步：先重置并调整 messageInput 的高度
+    input.style.height = 'auto'; // 重置高度以获取真实 scrollHeight
+    const inputScrollHeight = input.scrollHeight;
+    const maxHeight = parseInt(getComputedStyle(input).maxHeight, 10); // 获取 CSS max-height
+    const newInputHeight = Math.min(inputScrollHeight, maxHeight); // 限制最大高度
+    input.style.height = `${newInputHeight}px`; // 设置 messageInput 高度
 
+    // 第二步：等待 height 设置生效后，立即获取实时高度并调整 input-area
     requestAnimationFrame(() => {
-        void input.offsetHeight;
+        const realInputHeight = input.offsetHeight; // 获取网页中实时的渲染高度
+        const paddingVertical = 30; // 上下 padding 总和
+        inputArea.style.height = `${realInputHeight + paddingVertical}px`; // 直接基于实时高度设置 input-area
 
-        // 如果内容为空，恢复初始高度
+        // 如果内容为空，恢复自然高度
         if (!input.textContent.trim() && input.childNodes.length === 0) {
-            input.style.height = '60px';
-            inputArea.style.height = '90px';
-            input.scrollTop = 0;
-            inputArea.style.paddingRight = '15px';
-            return;
+            input.style.height = 'auto';
+            inputArea.style.height = 'auto';
         }
 
-        // 计算scrollHeight和是否需要滚动条
-        const scrollHeight = input.scrollHeight;
-        const hasScrollbar = scrollHeight > 200;
-        const newInputHeight = Math.max(60, Math.min(scrollHeight, 200));
-        input.style.height = `${newInputHeight}px`;
-
-        // 计算滚动条宽度
-        const scrollbarWidth = input.offsetWidth - input.clientWidth;
-
-        // 调整input-area高度，确保包含滚动条
-        const paddingVertical = 30; // 上下padding总和
-        const newInputAreaHeight = Math.max(90, Math.min(newInputHeight + paddingVertical, 230));
-        inputArea.style.height = `${newInputAreaHeight}px`;
-
-        // 处理滚动条的水平和垂直布局
-        if (hasScrollbar) {
-            inputArea.style.paddingRight = `${scrollbarWidth + 15}px`; // 留出滚动条空间
-            // 确保input-area高度足以容纳带滚动条的input
-            if (newInputHeight === 200) {
-                inputArea.style.height = `${newInputAreaHeight + scrollbarWidth}px`; // 额外增加滚动条空间
-            }
-        } else {
-            inputArea.style.paddingRight = '15px';
-        }
-
-        console.log(`adjustInputHeight: scrollHeight=${scrollHeight}, inputHeight=${newInputHeight}, inputAreaHeight=${inputArea.style.height}, hasScrollbar=${hasScrollbar}`);
+        console.log(`adjustInputHeight: scrollHeight=${inputScrollHeight}, realInputHeight=${realInputHeight}, inputAreaHeight=${inputArea.style.height}`);
     });
 }
 
@@ -145,9 +123,7 @@ adjustInputHeight();
 
 // 输入事件
 inputBox.addEventListener('input', () => {
-    requestAnimationFrame(() => {
-        adjustInputHeight();
-    });
+    debouncedAdjustInputHeight(); // 使用防抖版本
 });
 
 // 粘贴事件
@@ -158,18 +134,14 @@ inputBox.addEventListener('paste', async (event) => {
     let text = event.clipboardData.getData('text');
     if (text) {
         pasteToInputBox(text);
-        requestAnimationFrame(() => {
-            adjustInputHeight();
-        });
+        debouncedAdjustInputHeight(); // 使用防抖
     }
     for (let item of items) {
         if (item.kind === 'file') {
             const file = item.getAsFile();
             if (file) {
                 await uploadFile(file);
-                requestAnimationFrame(() => {
-                    adjustInputHeight();
-                });
+                debouncedAdjustInputHeight(); // 使用防抖
             } else {
                 addServerMessage('粘贴的文件无效，请使用上传按钮选择文件');
             }
@@ -189,9 +161,9 @@ inputBox.addEventListener('keydown', (event) => {
         range.insertNode(br);
         range.setStartAfter(br);
         range.setEndAfter(br);
-        debouncedAdjustInputHeight();
+        debouncedAdjustInputHeight(); // 使用防抖
     } else {
-        debouncedAdjustInputHeight();
+        debouncedAdjustInputHeight(); // 使用防抖
     }
 });
 
@@ -201,7 +173,7 @@ document.getElementById('fileInput').addEventListener('change', async () => {
     for (let file of files) {
         if (file) {
             await uploadFile(file);
-            debouncedAdjustInputHeight();
+            debouncedAdjustInputHeight(); // 使用防抖
         } else {
             console.error('选择的文件无效');
             addServerMessage('选择的文件无效，请重新选择');
@@ -857,16 +829,15 @@ async function sendMessage() {
         addServerMessage("WebSocket 未连接，请刷新页面重试");
     }
 
+    // 清空输入框并重置高度
     input.innerHTML = '';
     uploadedFiles = [];
-    input.style.height = '60px';
-    inputArea.style.height = '90px';
-    inputArea.style.paddingRight = '15px';
-    input.scrollTop = 0;
+    input.style.height = 'auto';
+    inputArea.style.height = 'auto';
     input.focus();
 
     requestAnimationFrame(() => {
-        adjustInputHeight();
+        adjustInputHeight(); // 立即调整高度
     });
 }
 

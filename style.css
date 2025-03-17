@@ -394,17 +394,12 @@ body {
     margin: 10px;
     transition: background-color 0.3s ease;
     align-items: center;
-    min-height: 90px;
-    max-height: 230px;
-    overflow-y: auto;
     justify-content: center;
 }
+
 #messageInput {
     width: 90%;
     max-width: 1000px;
-    min-height: 60px; /* 设置最小高度 */
-    max-height: 200px; /* 设置最大高度 */
-    margin-right: 15px;
     padding: 12px 20px;
     border-radius: 25px;
     border: none;
@@ -412,7 +407,8 @@ body {
     outline: none;
     background-color: rgba(255, 255, 255, 0.8);
     font-size: 16px;
-    transition: box-shadow 0.3s ease, background-color 0.3s ease;
+    transition: box-shadow 0.3s ease, background-color 0.3s ease, height 0.3s ease;
+    max-height: 200px;
     overflow-y: auto;
     box-sizing: border-box;
     scrollbar-width: thin;
@@ -422,7 +418,7 @@ body {
     word-wrap: break-word;
     overflow-x: hidden;
     color: #333;
-    resize: none; /* 防止手动调整大小 */
+    resize: none;
 }
 #messageInput:empty::before {
     content: '输入消息...';
