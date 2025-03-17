@@ -224,7 +224,7 @@ async def gemini_request(history: List[Dict[str, Any]], config, client_id: str, 
                         "role": "function",
                         "parts": func_responses
                     })
-                    return await gemini_request(history, config, client_id, send_message)
+                    return await gemini_request(history, config, client_id, send_message, api_key)
             
             content = "".join(part["text"] for part in parts if "text" in part)
             if content:
@@ -441,7 +441,7 @@ async def gemini_stream_request(history: List[Dict[str, Any]], config, client_id
                                 "role": "function",
                                 "parts": func_responses
                             })
-                            async for sub_chunk in gemini_stream_request(history, config, client_id, send_message, conversation_history):
+                            async for sub_chunk in await gemini_stream_request(history, config, client_id, send_message, conversation_history, api_key):
                                 yield sub_chunk
                             return
 
