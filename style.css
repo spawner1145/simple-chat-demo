@@ -396,6 +396,7 @@ body {
     align-items: center;
     overflow-y: auto;
     justify-content: center;
+    min-height: 75px;
 }
 
 #messageInput {
