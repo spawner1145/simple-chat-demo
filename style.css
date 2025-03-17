@@ -91,7 +91,7 @@ body {
     backdrop-filter: blur(5px);
     border-radius: 10px;
     margin: 10px 10px 0 10px;
-    transition: background-color 0.3s ease, margin-bottom 0.3s ease; /* 添加 margin-bottom 过渡 */
+    transition: background-color 0.3s ease, margin-bottom 0.3s ease;
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 90, 205, 0.5) transparent;
 }
@@ -400,7 +400,7 @@ body {
     justify-content: center;
     min-height: 75px;
     max-height: 230px;
-    transition: background-color 0.3s ease, height 0.3s ease; /* 已存在，确认包含 height */
+    transition: background-color 0.3s ease, height 0.3s ease;
     box-sizing: border-box;
 }
 
@@ -409,13 +409,12 @@ body {
     max-width: 1000px;
     padding: 12px 20px;
     border-radius: 25px;
-    display: flex;
     border: none;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     outline: none;
     background-color: rgba(255, 255, 255, 0.8);
     font-size: 16px;
-    transition: box-shadow 0.3s ease, background-color 0.3s ease, height 0.3s ease; /* 已存在，确认包含 height */
+    transition: box-shadow 0.3s ease, background-color 0.3s ease, height 0.3s ease;
     min-height: 45px;
     max-height: 200px;
     overflow-y: auto;

@@ -94,27 +94,24 @@ function adjustInputHeight() {
     const inputArea = document.querySelector('.input-area');
     const chatContainer = document.getElementById('chatContainer');
 
-    // 第一步：重置并计算 messageInput 的目标高度
-    input.style.transition = 'none'; // 临时禁用动画以避免闪烁
-    input.style.height = 'auto'; // 重置以获取真实 scrollHeight
+    input.style.transition = 'none';
+    input.style.height = 'auto';
     const inputScrollHeight = input.scrollHeight;
-    const minHeight = 45; // 与 CSS min-height: 45px 一致
-    const maxHeight = 200; // 与 CSS max-height: 200px 一致
+    const minHeight = 45;
+    const maxHeight = 200;
     const newInputHeight = Math.max(minHeight, Math.min(inputScrollHeight, maxHeight));
     input.style.height = `${newInputHeight}px`;
 
-    // 第二步：恢复动画并同步调整 input-area 和 chat-container
     requestAnimationFrame(() => {
-        input.style.transition = 'height 0.3s ease'; // 恢复动画
+        input.style.transition = 'height 0.3s ease';
         const realInputHeight = input.offsetHeight;
-        const paddingVertical = 30; // 上下 padding 总和
-        const minInputAreaHeight = 75; // 与 CSS min-height: 75px 一致
-        const maxInputAreaHeight = 230; // 与 CSS max-height: 230px 一致
+        const paddingVertical = 30;
+        const minInputAreaHeight = 75;
+        const maxInputAreaHeight = 230;
         const newInputAreaHeight = Math.max(minInputAreaHeight, Math.min(realInputHeight + paddingVertical, maxInputAreaHeight));
         inputArea.style.height = `${newInputAreaHeight}px`;
         chatContainer.style.marginBottom = `${newInputAreaHeight + 10}px`;
 
-        // 如果内容为空，恢复最小高度
         if (!input.textContent.trim() && input.childNodes.length === 0) {
             input.style.height = `${minHeight}px`;
             inputArea.style.height = `${minInputAreaHeight}px`;
@@ -132,7 +129,7 @@ adjustInputHeight();
 
 // 输入事件
 inputBox.addEventListener('input', () => {
-    debouncedAdjustInputHeight(); // 使用防抖版本
+    debouncedAdjustInputHeight();
 });
 
 // 粘贴事件
@@ -143,14 +140,14 @@ inputBox.addEventListener('paste', async (event) => {
     let text = event.clipboardData.getData('text');
     if (text) {
         pasteToInputBox(text);
-        debouncedAdjustInputHeight(); // 使用防抖
+        debouncedAdjustInputHeight();
     }
     for (let item of items) {
         if (item.kind === 'file') {
             const file = item.getAsFile();
             if (file) {
                 await uploadFile(file);
-                debouncedAdjustInputHeight(); // 使用防抖
+                debouncedAdjustInputHeight();
             } else {
                 addServerMessage('粘贴的文件无效，请使用上传按钮选择文件');
             }
@@ -170,9 +167,9 @@ inputBox.addEventListener('keydown', (event) => {
         range.insertNode(br);
         range.setStartAfter(br);
         range.setEndAfter(br);
-        debouncedAdjustInputHeight(); // 使用防抖
+        debouncedAdjustInputHeight();
     } else {
-        debouncedAdjustInputHeight(); // 使用防抖
+        debouncedAdjustInputHeight();
     }
 });
 
@@ -255,9 +252,9 @@ async function uploadFile(file) {
             const fileChip = document.createElement('span');
             fileChip.classList.add('file-chip');
             if (document.body.classList.contains('dark-mode')) {
-                fileChip.classList.add('dark-mode'); // 同步深色模式
+                fileChip.classList.add('dark-mode');
             }
-            fileChip.setAttribute('contenteditable', 'false');
+            fileChip.setAttribute('contenteditable', 'false'); // 恢复原始设计
             fileChip.dataset.fileId = fileId;
 
             const fileNameSpan = document.createElement('span');
@@ -294,6 +291,7 @@ async function uploadFile(file) {
             fileChip.appendChild(fileNameSpan);
             fileChip.appendChild(deleteBtn);
             replaceInInputBox(placeholderNode, fileChip);
+            debouncedAdjustInputHeight();
         };
         reader.onerror = () => {
             const errorText = document.createTextNode(`${file.name} 读取失败`);
@@ -841,12 +839,11 @@ async function sendMessage() {
         addServerMessage("WebSocket 未连接，请刷新页面重试");
     }
 
-    // 清空输入框并重置高度（带动画）
     input.innerHTML = '';
     uploadedFiles = [];
-    input.style.height = `${45}px`; // 重置为最小高度，动画生效
-    inputArea.style.height = `${75}px`; // 重置为最小高度，动画生效
-    chatContainer.style.marginBottom = `${75 + 10}px`; // 重置，动画生效
+    input.style.height = `${45}px`;
+    inputArea.style.height = `${75}px`;
+    chatContainer.style.marginBottom = `${75 + 10}px`;
     input.focus();
 }
 
