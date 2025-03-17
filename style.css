@@ -1,4 +1,3 @@
-
 body {
     background: linear-gradient(135deg, #e6e6fa, #d8bfd8, #add8e6);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -7,7 +6,7 @@ body {
     display: flex;
     height: 100vh;
     transition: background 0.3s ease;
-    overflow: auto;
+    overflow: hidden; /* 改为 hidden，防止整体滚动 */
 }
 .sidebar {
     width: 200px;
@@ -75,6 +74,8 @@ body {
     display: flex;
     flex-direction: column;
     animation: fadeIn 0.5s ease-out;
+    position: relative;
+    overflow: hidden;
 }
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(20px); }
@@ -89,8 +90,8 @@ body {
     background-color: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(5px);
     border-radius: 10px;
-    margin: 10px;
-    transition: background-color 0.3s ease;
+    margin: 10px 10px 0 10px;
+    transition: background-color 0.3s ease, margin-bottom 0.3s ease; /* 添加 margin-bottom 过渡 */
     scrollbar-width: thin;
     scrollbar-color: rgba(106, 90, 205, 0.5) transparent;
 }
@@ -385,18 +386,22 @@ body {
     50% { opacity: 0; }
 }
 .input-area {
-    display: flex;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
     padding: 15px;
     background-color: rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(8px);
     box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.1);
     border-radius: 10px;
-    margin: 10px;
-    transition: background-color 0.3s ease;
-    align-items: center;
-    overflow-y: auto;
+    display: flex;
+    align-items: flex-end;
     justify-content: center;
     min-height: 75px;
+    max-height: 230px;
+    transition: background-color 0.3s ease, height 0.3s ease; /* 已存在，确认包含 height */
+    box-sizing: border-box;
 }
 
 #messageInput {
@@ -404,12 +409,14 @@ body {
     max-width: 1000px;
     padding: 12px 20px;
     border-radius: 25px;
+    display: flex;
     border: none;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     outline: none;
     background-color: rgba(255, 255, 255, 0.8);
     font-size: 16px;
-    transition: box-shadow 0.3s ease, background-color 0.3s ease, height 0.3s ease;
+    transition: box-shadow 0.3s ease, background-color 0.3s ease, height 0.3s ease; /* 已存在，确认包含 height */
+    min-height: 45px;
     max-height: 200px;
     overflow-y: auto;
     box-sizing: border-box;
@@ -441,6 +448,7 @@ body {
 .button-container {
     display: flex;
     gap: 10px;
+    margin-bottom: 5px; /* 与输入框底部对齐 */
 }
 .input-area button {
     padding: 12px 25px;

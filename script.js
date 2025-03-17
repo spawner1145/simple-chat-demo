@@ -92,33 +92,42 @@ function debounce(func, wait) {
 function adjustInputHeight() {
     const input = document.getElementById('messageInput');
     const inputArea = document.querySelector('.input-area');
+    const chatContainer = document.getElementById('chatContainer');
 
-    // 第一步：先重置并调整 messageInput 的高度
-    input.style.height = 'auto'; // 重置高度以获取真实 scrollHeight
+    // 第一步：重置并计算 messageInput 的目标高度
+    input.style.transition = 'none'; // 临时禁用动画以避免闪烁
+    input.style.height = 'auto'; // 重置以获取真实 scrollHeight
     const inputScrollHeight = input.scrollHeight;
-    const maxHeight = parseInt(getComputedStyle(input).maxHeight, 10); // 获取 CSS max-height
-    const newInputHeight = Math.min(inputScrollHeight, maxHeight); // 限制最大高度
-    input.style.height = `${newInputHeight}px`; // 设置 messageInput 高度
+    const minHeight = 45; // 与 CSS min-height: 45px 一致
+    const maxHeight = 200; // 与 CSS max-height: 200px 一致
+    const newInputHeight = Math.max(minHeight, Math.min(inputScrollHeight, maxHeight));
+    input.style.height = `${newInputHeight}px`;
 
-    // 第二步：等待 height 设置生效后，立即获取实时高度并调整 input-area
+    // 第二步：恢复动画并同步调整 input-area 和 chat-container
     requestAnimationFrame(() => {
-        const realInputHeight = input.offsetHeight; // 获取网页中实时的渲染高度
+        input.style.transition = 'height 0.3s ease'; // 恢复动画
+        const realInputHeight = input.offsetHeight;
         const paddingVertical = 30; // 上下 padding 总和
-        inputArea.style.height = `${realInputHeight + paddingVertical}px`; // 直接基于实时高度设置 input-area
+        const minInputAreaHeight = 75; // 与 CSS min-height: 75px 一致
+        const maxInputAreaHeight = 230; // 与 CSS max-height: 230px 一致
+        const newInputAreaHeight = Math.max(minInputAreaHeight, Math.min(realInputHeight + paddingVertical, maxInputAreaHeight));
+        inputArea.style.height = `${newInputAreaHeight}px`;
+        chatContainer.style.marginBottom = `${newInputAreaHeight + 10}px`;
 
-        // 如果内容为空，恢复自然高度
+        // 如果内容为空，恢复最小高度
         if (!input.textContent.trim() && input.childNodes.length === 0) {
-            input.style.height = 'auto';
-            inputArea.style.height = 'auto';
+            input.style.height = `${minHeight}px`;
+            inputArea.style.height = `${minInputAreaHeight}px`;
+            chatContainer.style.marginBottom = `${minInputAreaHeight + 10}px`;
         }
 
-        console.log(`adjustInputHeight: scrollHeight=${inputScrollHeight}, realInputHeight=${realInputHeight}, inputAreaHeight=${inputArea.style.height}`);
+        console.log(`adjustInputHeight: inputHeight=${realInputHeight}, inputAreaHeight=${newInputAreaHeight}, chatMarginBottom=${chatContainer.style.marginBottom}`);
     });
 }
 
 const debouncedAdjustInputHeight = debounce(adjustInputHeight, 100);
 
-// 初始化时调整高度
+// 初始化
 adjustInputHeight();
 
 // 输入事件
@@ -219,6 +228,7 @@ document.body.addEventListener('drop', async (e) => {
     for (let file of files) {
         await uploadFile(file);
     }
+    debouncedAdjustInputHeight(); // 添加高度调整
     console.log("File dropped, uploading...");
 });
 
@@ -800,9 +810,11 @@ function autoScrollIfAtBottom(container) {
     });
 }
 
+// 发送消息
 async function sendMessage() {
     const input = document.getElementById('messageInput');
     const inputArea = document.querySelector('.input-area');
+    const chatContainer = document.getElementById('chatContainer');
     const content = getInputContent();
     if (content.length === 0) return;
 
@@ -829,16 +841,13 @@ async function sendMessage() {
         addServerMessage("WebSocket 未连接，请刷新页面重试");
     }
 
-    // 清空输入框并重置高度
+    // 清空输入框并重置高度（带动画）
     input.innerHTML = '';
     uploadedFiles = [];
-    input.style.height = 'auto';
-    inputArea.style.height = 'auto';
+    input.style.height = `${45}px`; // 重置为最小高度，动画生效
+    inputArea.style.height = `${75}px`; // 重置为最小高度，动画生效
+    chatContainer.style.marginBottom = `${75 + 10}px`; // 重置，动画生效
     input.focus();
-
-    requestAnimationFrame(() => {
-        adjustInputHeight(); // 立即调整高度
-    });
 }
 
 function createStreamingBubbleAsync() {
