@@ -1,4 +1,3 @@
-
 marked.setOptions({
     breaks: true,
     gfm: true,
@@ -26,7 +25,7 @@ let uploadedFiles = [];
 const inputBox = document.getElementById('messageInput');
 const dragOverlay = document.getElementById('dragOverlay');
 
-async function initWebSocket() {
+function initWebSocket() {
     ws = new WebSocket(`${BASE_URL}/ws`);
     ws.onopen = () => {
         console.log("WebSocket 已连接");
@@ -36,12 +35,12 @@ async function initWebSocket() {
         const data = event.data;
         console.log("收到 WebSocket 消息:", data);
         if (data.startsWith('data: ')) {
-            await handleStreamingMessage(data); // 处理流式消息
+            await handleStreamingMessage(data);
         } else {
             try {
                 const messageData = JSON.parse(data);
                 console.log("解析后的非流式消息:", messageData);
-                renderServerMessage(messageData); // 处理非流式消息
+                renderServerMessage(messageData);
             } catch (e) {
                 console.error("解析非流式消息失败:", e, "原始数据:", data);
                 addServerMessage(`解析错误: ${e.message}`);
@@ -50,9 +49,23 @@ async function initWebSocket() {
     };
     ws.onerror = (error) => {
         console.error("WebSocket 错误:", error);
+        if (isStreaming && currentStreamBubble) {
+            currentStreamBubble.remove();
+            currentStreamContent = '';
+            currentStreamBubble = null;
+            isStreaming = false;
+            addServerMessage("流式输出中断，因连接错误");
+        }
         addServerMessage("WebSocket 连接错误，请刷新页面重试");
     };
     ws.onclose = () => {
+        if (isStreaming && currentStreamBubble) {
+            currentStreamBubble.remove();
+            currentStreamContent = '';
+            currentStreamBubble = null;
+            isStreaming = false;
+            addServerMessage("流式输出中断，因连接断开");
+        }
         console.log("WebSocket 已断开，尝试重连...");
         addServerMessage("WebSocket 已断开，正在尝试重连...");
         setTimeout(initWebSocket, 1000);
@@ -67,6 +80,104 @@ initWebSocket();
     }
 })();
 
+// 防抖函数
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function adjustInputHeight() {
+    const input = document.getElementById('messageInput');
+    const inputArea = document.querySelector('.input-area');
+
+    // 重置高度以获取真实的scrollHeight
+    input.style.height = 'auto';
+    inputArea.style.height = 'auto';
+
+    requestAnimationFrame(() => {
+        void input.offsetHeight;
+
+        // 如果内容为空，恢复初始高度
+        if (!input.textContent.trim() && input.childNodes.length === 0) {
+            input.style.height = '60px';
+            inputArea.style.height = '90px';
+            input.scrollTop = 0;
+            inputArea.style.paddingRight = '15px';
+            return;
+        }
+
+        // 计算scrollHeight和是否需要滚动条
+        const scrollHeight = input.scrollHeight;
+        const hasScrollbar = scrollHeight > 200;
+        const newInputHeight = Math.max(60, Math.min(scrollHeight, 200));
+        input.style.height = `${newInputHeight}px`;
+
+        // 计算滚动条宽度
+        const scrollbarWidth = input.offsetWidth - input.clientWidth;
+
+        // 调整input-area高度，确保包含滚动条
+        const paddingVertical = 30; // 上下padding总和
+        const newInputAreaHeight = Math.max(90, Math.min(newInputHeight + paddingVertical, 230));
+        inputArea.style.height = `${newInputAreaHeight}px`;
+
+        // 处理滚动条的水平和垂直布局
+        if (hasScrollbar) {
+            inputArea.style.paddingRight = `${scrollbarWidth + 15}px`; // 留出滚动条空间
+            // 确保input-area高度足以容纳带滚动条的input
+            if (newInputHeight === 200) {
+                inputArea.style.height = `${newInputAreaHeight + scrollbarWidth}px`; // 额外增加滚动条空间
+            }
+        } else {
+            inputArea.style.paddingRight = '15px';
+        }
+
+        console.log(`adjustInputHeight: scrollHeight=${scrollHeight}, inputHeight=${newInputHeight}, inputAreaHeight=${inputArea.style.height}, hasScrollbar=${hasScrollbar}`);
+    });
+}
+
+const debouncedAdjustInputHeight = debounce(adjustInputHeight, 100);
+
+// 初始化时调整高度
+adjustInputHeight();
+
+// 输入事件
+inputBox.addEventListener('input', () => {
+    requestAnimationFrame(() => {
+        adjustInputHeight();
+    });
+});
+
+// 粘贴事件
+inputBox.addEventListener('paste', async (event) => {
+    event.preventDefault();
+    inputBox.focus();
+    const items = event.clipboardData.items;
+    let text = event.clipboardData.getData('text');
+    if (text) {
+        pasteToInputBox(text);
+        requestAnimationFrame(() => {
+            adjustInputHeight();
+        });
+    }
+    for (let item of items) {
+        if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+                await uploadFile(file);
+                requestAnimationFrame(() => {
+                    adjustInputHeight();
+                });
+            } else {
+                addServerMessage('粘贴的文件无效，请使用上传按钮选择文件');
+            }
+        }
+    }
+});
+
+// 按键事件
 inputBox.addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.key === 'Enter') {
         sendMessage();
@@ -78,35 +189,19 @@ inputBox.addEventListener('keydown', (event) => {
         range.insertNode(br);
         range.setStartAfter(br);
         range.setEndAfter(br);
+        debouncedAdjustInputHeight();
+    } else {
+        debouncedAdjustInputHeight();
     }
 });
 
-inputBox.addEventListener('paste', async (event) => {
-    event.preventDefault();
-    inputBox.focus();
-    const items = event.clipboardData.items;
-    let text = event.clipboardData.getData('text');
-    if (text) {
-        pasteToInputBox(text);
-    }
-    for (let item of items) {
-        if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) {
-                await uploadFile(file);
-            } else {
-                console.error('粘贴的文件无效');
-                addServerMessage('粘贴的文件无效，请使用上传按钮选择文件');
-            }
-        }
-    }
-});
-
+// 文件上传后调整高度
 document.getElementById('fileInput').addEventListener('change', async () => {
     const files = document.getElementById('fileInput').files;
     for (let file of files) {
         if (file) {
             await uploadFile(file);
+            debouncedAdjustInputHeight();
         } else {
             console.error('选择的文件无效');
             addServerMessage('选择的文件无效，请重新选择');
@@ -136,7 +231,8 @@ document.body.addEventListener('dragleave', (e) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounter--;
-    if (dragCounter === 0) {
+    if (dragCounter <= 0) {
+        dragCounter = 0;
         dragOverlay.classList.remove('active');
     }
     console.log("Drag leave, counter:", dragCounter);
@@ -146,7 +242,7 @@ document.body.addEventListener('drop', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     dragOverlay.classList.remove('active');
-    dragCounter = 0;
+    dragCounter = 0; // 直接重置
     const files = e.dataTransfer.files;
     for (let file of files) {
         await uploadFile(file);
@@ -171,12 +267,16 @@ async function uploadFile(file) {
         reader.onload = (e) => {
             const base64Data = e.target.result.split(',')[1];
             const mimeType = file.type || "application/octet-stream";
-            uploadedFiles.push({ file: file, type: mimeType, base64: base64Data });
+            const fileId = Date.now() + Math.random().toString(36).substr(2, 5);
+            uploadedFiles.push({ fileId, file, type: mimeType, base64: base64Data });
 
             const fileChip = document.createElement('span');
             fileChip.classList.add('file-chip');
+            if (document.body.classList.contains('dark-mode')) {
+                fileChip.classList.add('dark-mode'); // 同步深色模式
+            }
             fileChip.setAttribute('contenteditable', 'false');
-            fileChip.dataset.fileName = file.name;
+            fileChip.dataset.fileId = fileId;
 
             const fileNameSpan = document.createElement('span');
             fileNameSpan.classList.add('file-name');
@@ -187,16 +287,17 @@ async function uploadFile(file) {
             deleteBtn.textContent = '×';
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
-                const fileIndex = uploadedFiles.findIndex(f => f.file.name === file.name);
+                const fileIndex = uploadedFiles.findIndex(f => f.fileId === fileId);
                 if (fileIndex !== -1) {
                     uploadedFiles.splice(fileIndex, 1);
                 }
                 fileChip.remove();
+                debouncedAdjustInputHeight();
             };
 
             fileChip.onclick = (e) => {
                 e.stopPropagation();
-                const uploadedFile = uploadedFiles.find(f => f.file.name === file.name);
+                const uploadedFile = uploadedFiles.find(f => f.fileId === fileId);
                 if (uploadedFile) {
                     const { type, base64 } = uploadedFile;
                     const url = `data:${type};base64,${base64}`;
@@ -210,8 +311,12 @@ async function uploadFile(file) {
 
             fileChip.appendChild(fileNameSpan);
             fileChip.appendChild(deleteBtn);
-
             replaceInInputBox(placeholderNode, fileChip);
+        };
+        reader.onerror = () => {
+            const errorText = document.createTextNode(`${file.name} 读取失败`);
+            replaceInInputBox(placeholderNode, errorText);
+            addServerMessage(`文件读取失败: ${file.name}`);
         };
         reader.readAsDataURL(file);
     } catch (error) {
@@ -239,6 +344,7 @@ function pasteToInputBox(content) {
     range.insertNode(node);
     range.setStartAfter(node);
     range.setEndAfter(node);
+    debouncedAdjustInputHeight();
     return node;
 }
 
@@ -252,6 +358,7 @@ function replaceInInputBox(oldNode, newContent) {
     range.insertNode(node);
     range.setStartAfter(node);
     range.setEndAfter(node);
+    debouncedAdjustInputHeight();
 }
 
 function getInputContent() {
@@ -259,21 +366,21 @@ function getInputContent() {
     const content = [];
     let currentText = '';
     for (const child of input.childNodes) {
-        if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-            currentText += child.textContent.trim();
+        if (child.nodeType === Node.TEXT_NODE) {
+            currentText += child.textContent;
         } else if (child.nodeName === 'BR') {
             if (currentText) {
                 content.push({ type: 'text', content: currentText });
                 currentText = '';
             }
             content.push({ type: 'text', content: '\n' });
-        } else if (child.classList && child.classList.contains('file-chip')) {
+        } else if (child.classList?.contains('file-chip')) {
             if (currentText) {
                 content.push({ type: 'text', content: currentText });
                 currentText = '';
             }
-            const fileName = child.dataset.fileName;
-            const uploadedFile = uploadedFiles.find(f => f.file.name === fileName);
+            const fileId = child.dataset.fileId;
+            const uploadedFile = uploadedFiles.find(f => f.fileId === fileId);
             if (uploadedFile) {
                 const { type, base64 } = uploadedFile;
                 let msgType = "file";
@@ -285,7 +392,7 @@ function getInputContent() {
                     source: {
                         base64: base64,
                         mime_type: type,
-                        filename: fileName  // 改为 filename，与后端一致
+                        filename: uploadedFile.file.name
                     }
                 });
             }
@@ -348,6 +455,11 @@ function createMediaElementFromBase64(type, base64Data, mimeType, name) {
         progress.style.width = `${percent}%`;
     };
 
+    const cleanupListeners = () => {
+        document.onmousemove = null;
+        document.onmouseup = null;
+    };
+
     progressBar.onmousedown = (e) => {
         const rect = progressBar.getBoundingClientRect();
         const updateProgress = (event) => {
@@ -358,13 +470,8 @@ function createMediaElementFromBase64(type, base64Data, mimeType, name) {
         };
         updateProgress(e);
 
-        document.onmousemove = (event) => {
-            updateProgress(event);
-        };
-        document.onmouseup = () => {
-            document.onmousemove = null;
-            document.onmouseup = null;
-        };
+        document.onmousemove = (event) => updateProgress(event);
+        document.onmouseup = cleanupListeners;
     };
 
     controls.appendChild(playPauseBtn);
@@ -496,6 +603,11 @@ function openModal(type, url, name) {
             progress.style.width = `${percent}%`;
         };
 
+        const cleanupListeners = () => {
+            document.onmousemove = null;
+            document.onmouseup = null;
+        };
+
         progressBar.onmousedown = (e) => {
             const rect = progressBar.getBoundingClientRect();
             const updateProgress = (event) => {
@@ -506,13 +618,8 @@ function openModal(type, url, name) {
             };
             updateProgress(e);
 
-            document.onmousemove = (event) => {
-                updateProgress(event);
-            };
-            document.onmouseup = () => {
-                document.onmousemove = null;
-                document.onmouseup = null;
-            };
+            document.onmousemove = (event) => updateProgress(event);
+            document.onmouseup = cleanupListeners;
         };
         modalControls.appendChild(progressBar);
     }
@@ -538,6 +645,8 @@ function closeModal() {
     modal.addEventListener('transitionend', function handler() {
         modal.style.display = 'none';
         modal.removeEventListener('transitionend', handler);
+        document.onmousemove = null;
+        document.onmouseup = null;
     }, { once: true });
 }
 
@@ -561,18 +670,18 @@ function openNodeModal(messages) {
                     textDiv.innerHTML = htmlContent;
                     messageDiv.appendChild(textDiv);
                 } else if (item.type === 'image') {
-                    const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from server", item.source.name);
+                    const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from server", item.source.filename || "unnamed_image");
                     messageDiv.appendChild(imgContainer);
                 } else if (item.type === 'video') {
-                    const videoContainer = createMediaElementFromBase64('video', item.source.base64, item.source.mime_type, item.source.name);
+                    const videoContainer = createMediaElementFromBase64('video', item.source.base64, item.source.mime_type, item.source.filename || "unnamed_video");
                     const video = videoContainer.querySelector('video');
-                    video.onclick = () => openModal('video', video.src, item.source.name);
+                    video.onclick = () => openModal('video', video.src, item.source.filename || "unnamed_video");
                     messageDiv.appendChild(videoContainer);
                 } else if (item.type === 'audio') {
-                    const audioInteraction = createAudioInteraction(item.source.base64, item.source.mime_type, item.source.name);
+                    const audioInteraction = createAudioInteraction(item.source.base64, item.source.mime_type, item.source.filename || "unnamed_audio");
                     messageDiv.appendChild(audioInteraction);
                 } else if (item.type === 'file') {
-                    const fileContainer = renderFile(item.source.base64, item.source.mime_type, item.source.name);
+                    const fileContainer = renderFile(item.source.base64, item.source.mime_type, item.source.filename || "unnamed_file");
                     messageDiv.appendChild(fileContainer);
                 }
             });
@@ -583,18 +692,18 @@ function openNodeModal(messages) {
                 textDiv.innerHTML = htmlContent;
                 messageDiv.appendChild(textDiv);
             } else if (message.type === 'image') {
-                const imgContainer = renderMediaFromBase64(message.source.base64, message.source.mime_type, "Image from server", message.source.name);
+                const imgContainer = renderMediaFromBase64(message.source.base64, message.source.mime_type, "Image from server", message.source.filename || "unnamed_image");
                 messageDiv.appendChild(imgContainer);
             } else if (message.type === 'video') {
-                const videoContainer = createMediaElementFromBase64('video', message.source.base64, message.source.mime_type, message.source.name);
+                const videoContainer = createMediaElementFromBase64('video', message.source.base64, message.source.mime_type, message.source.filename || "unnamed_video");
                 const video = videoContainer.querySelector('video');
-                video.onclick = () => openModal('video', video.src, message.source.name);
+                video.onclick = () => openModal('video', video.src, message.source.filename || "unnamed_video");
                 messageDiv.appendChild(videoContainer);
             } else if (message.type === 'audio') {
-                const audioInteraction = createAudioInteraction(message.source.base64, message.source.mime_type, message.source.name);
+                const audioInteraction = createAudioInteraction(message.source.base64, message.source.mime_type, message.source.filename || "unnamed_audio");
                 messageDiv.appendChild(audioInteraction);
             } else if (message.type === 'file') {
-                const fileContainer = renderFile(message.source.base64, message.source.mime_type, message.source.name);
+                const fileContainer = renderFile(message.source.base64, message.source.mime_type, message.source.filename || "unnamed_file");
                 messageDiv.appendChild(fileContainer);
             }
         }
@@ -711,16 +820,25 @@ function renderMedia(container, content) {
 }
 
 function autoScrollIfAtBottom(container) {
-    const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-    if (isAtBottom) {
-        container.scrollTop = container.scrollHeight;
-    }
+    requestAnimationFrame(() => {
+        const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+        if (isAtBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
+    });
 }
 
 async function sendMessage() {
     const input = document.getElementById('messageInput');
+    const inputArea = document.querySelector('.input-area');
     const content = getInputContent();
     if (content.length === 0) return;
+
+    const hasFailedUploads = uploadedFiles.some(f => !f.base64);
+    if (hasFailedUploads) {
+        addServerMessage("存在上传失败的文件，请检查后重新发送");
+        return;
+    }
 
     addUserMessage(content);
 
@@ -728,22 +846,28 @@ async function sendMessage() {
         message: content,
         isStreaming: isStreamingEnabled
     };
-    console.log("发送 WebSocket 数据:", messageData);
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(messageData));
         if (isStreamingEnabled) {
-            console.log("流式输出已启用，等待后端响应");
             currentStreamContent = '';
             currentStreamBubble = null;
-            isStreaming = true; // 确保 isStreaming 状态正确
+            isStreaming = true;
         }
     } else {
-        console.error("WebSocket 未连接");
         addServerMessage("WebSocket 未连接，请刷新页面重试");
     }
 
     input.innerHTML = '';
     uploadedFiles = [];
+    input.style.height = '60px';
+    inputArea.style.height = '90px';
+    inputArea.style.paddingRight = '15px';
+    input.scrollTop = 0;
+    input.focus();
+
+    requestAnimationFrame(() => {
+        adjustInputHeight();
+    });
 }
 
 function createStreamingBubbleAsync() {
@@ -795,17 +919,17 @@ function renderStreamingContent(fullContent) {
         return;
     }
 
-    // 使用 marked 解析完整内容并重新渲染
+    streamingContainer.innerHTML = '';
     try {
         const htmlContent = marked.parse(fullContent);
         streamingContainer.innerHTML = htmlContent;
-        streamingContainer.dataset.content = fullContent; // 更新 dataset 以供下载
+        streamingContainer.dataset.content = fullContent;
     } catch (e) {
         console.error("Markdown 解析错误:", e);
-        streamingContainer.textContent = fullContent; // 降级为纯文本
+        streamingContainer.textContent = fullContent;
+        addServerMessage("Markdown 解析失败，已显示原始文本");
     }
 
-    // 为代码块添加“复制”按钮
     const pres = streamingContainer.getElementsByTagName("pre");
     for (let pre of pres) {
         if (!pre.querySelector(".copy-btn")) {
@@ -835,6 +959,9 @@ async function handleStreamingMessage(data) {
 
         if (parsedData.error) {
             addServerMessage(`错误: ${parsedData.error}`);
+            if (currentStreamBubble) {
+                currentStreamBubble.remove();
+            }
             isStreaming = false;
             currentStreamBubble = null;
             return;
@@ -867,7 +994,7 @@ async function handleStreamingMessage(data) {
         if (content && currentStreamBubble) {
             console.log("追加流式内容并重新渲染:", content);
             currentStreamContent += content;
-            renderStreamingContent(currentStreamContent); // 传入完整内容以重新渲染
+            renderStreamingContent(currentStreamContent);
         }
 
         if (isEnd && currentStreamBubble) {
@@ -880,13 +1007,15 @@ async function handleStreamingMessage(data) {
     } catch (e) {
         console.error("解析流式消息错误:", e, "原始数据:", data);
         addServerMessage(`解析错误: ${e.message}`);
+        if (currentStreamBubble) {
+            currentStreamBubble.remove();
+        }
         isStreaming = false;
         currentStreamBubble = null;
         renderFallbackStreamingMessage(`解析错误: ${e.message}`);
     }
 }
 
-// 后备渲染函数：如果 currentStreamBubble 失败，直接渲染内容
 function renderFallbackStreamingMessage(content) {
     if (!content) return;
     const chatContainer = document.getElementById("chatContainer");
@@ -906,7 +1035,7 @@ function renderFallbackStreamingMessage(content) {
         textDiv.innerHTML = htmlContent;
     } catch (e) {
         console.error("Markdown 解析错误:", e);
-        textDiv.textContent = content; // 降级为纯文本
+        textDiv.textContent = content;
     }
 
     messageDiv.appendChild(textDiv);
@@ -923,16 +1052,16 @@ function finalizeStreamingMessage() {
 
     messageDiv.classList.remove("streaming-active");
 
-    // 最终渲染，确保 Markdown 正确
+    streamingContainer.innerHTML = '';
     try {
         const finalHtml = marked.parse(currentStreamContent);
         streamingContainer.innerHTML = finalHtml;
     } catch (e) {
         console.error("Markdown 最终渲染错误:", e);
-        streamingContainer.textContent = currentStreamContent; // 降级为纯文本
+        streamingContainer.textContent = currentStreamContent;
+        addServerMessage("Markdown 解析失败，已显示原始文本");
     }
 
-    // 为代码块添加“复制”按钮
     const pres = streamingContainer.getElementsByTagName("pre");
     for (let pre of pres) {
         if (!pre.querySelector(".copy-btn")) {
@@ -954,7 +1083,6 @@ function finalizeStreamingMessage() {
     autoScrollIfAtBottom(document.getElementById("chatContainer"));
 }
 
-// 非流式消息渲染，确保与流式保持一致
 function renderServerMessage(data) {
     const messageWrapper = document.createElement("div");
     messageWrapper.classList.add("message-wrapper", "server-wrapper");
@@ -972,10 +1100,16 @@ function renderServerMessage(data) {
     data.forEach(item => {
         if (item.type === "text") {
             combinedText += item.content;
-            const htmlContent = marked.parse(combinedText);
             const textDiv = document.createElement('div');
-            textDiv.innerHTML = htmlContent;
+            if (!item.content.trim()) {
+                textDiv.style.minHeight = '1em';
+                textDiv.innerHTML = item.content.replace(/\n/g, '<br>') || '&nbsp;';
+            } else {
+                const htmlContent = marked.parse(combinedText);
+                textDiv.innerHTML = htmlContent;
+            }
             messageDiv.appendChild(textDiv);
+            renderMedia(messageDiv, combinedText); // 添加媒体渲染
         } else if (item.type === "image") {
             const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from server", item.source.filename || "unnamed_image");
             messageDiv.appendChild(imgContainer);
@@ -1023,6 +1157,49 @@ function renderServerMessage(data) {
     autoScrollIfAtBottom(chatContainer);
 }
 
+function renderStreamingContent(fullContent) {
+    if (!currentStreamBubble) {
+        console.error("currentStreamBubble 不存在，无法渲染流式内容");
+        return;
+    }
+    const streamingContainer = currentStreamBubble.querySelector(".streaming-container");
+    if (!streamingContainer) {
+        console.error("未找到 streaming-container 元素");
+        return;
+    }
+
+    streamingContainer.innerHTML = '';
+    try {
+        const htmlContent = marked.parse(fullContent);
+        streamingContainer.innerHTML = htmlContent;
+        streamingContainer.dataset.content = fullContent;
+        renderMedia(streamingContainer, fullContent); // 添加媒体渲染
+    } catch (e) {
+        console.error("Markdown 解析错误:", e);
+        streamingContainer.textContent = fullContent;
+        addServerMessage("Markdown 解析失败，已显示原始文本");
+    }
+
+    const pres = streamingContainer.getElementsByTagName("pre");
+    for (let pre of pres) {
+        if (!pre.querySelector(".copy-btn")) {
+            const codeContent = pre.textContent;
+            const copyBtn = document.createElement("button");
+            copyBtn.textContent = "复制";
+            copyBtn.classList.add("copy-btn");
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(codeContent.trim()).then(() => {
+                    copyBtn.textContent = "已复制";
+                    setTimeout(() => (copyBtn.textContent = "复制"), 2000);
+                });
+            };
+            pre.appendChild(copyBtn);
+        }
+    }
+
+    autoScrollIfAtBottom(document.getElementById("chatContainer"));
+}
+
 function addUserMessage(content) {
     const chatContainer = document.getElementById("chatContainer");
     const messageWrapper = document.createElement("div");
@@ -1033,8 +1210,11 @@ function addUserMessage(content) {
     content.forEach(item => {
         if (item.type === 'text') {
             const textDiv = document.createElement('div');
-            const htmlContent = marked.parse(item.content);
-            textDiv.innerHTML = htmlContent;
+            textDiv.textContent = item.content;
+            if (!item.content.trim()) {
+                textDiv.style.minHeight = '1em';
+                textDiv.innerHTML = item.content.replace(/\n/g, '<br>') || '&nbsp;';
+            }
             messageDiv.appendChild(textDiv);
         } else if (item.type === 'image') {
             const imgContainer = renderMediaFromBase64(item.source.base64, item.source.mime_type, "Image from user", item.source.filename);
@@ -1077,10 +1257,12 @@ function toggleMode() {
         body.classList.remove('dark-mode');
         toggleButton.textContent = '切换到黑夜模式';
         localStorage.setItem('dark-mode', 'false');
+        document.querySelectorAll('.file-chip').forEach(chip => chip.classList.remove('dark-mode'));
     } else {
         body.classList.add('dark-mode');
         toggleButton.textContent = '切换到白天模式';
         localStorage.setItem('dark-mode', 'true');
+        document.querySelectorAll('.file-chip').forEach(chip => chip.classList.add('dark-mode'));
     }
 }
 
@@ -1128,7 +1310,6 @@ function addServerMessage(content) {
 
     renderMedia(messageDiv, content);
 
-    // 为代码块添加“复制”按钮
     const pres = messageDiv.getElementsByTagName('pre');
     for (let pre of pres) {
         if (!pre.querySelector('.copy-btn')) {

@@ -35,7 +35,7 @@ def webui_main(config):
             image = Image(path=r'C:/Users/spawner/Downloads/《Break the Cocoon》封面.jpg')
             custom_file = CustomFile(path=r'C:/Users/spawner/Downloads/部署文档.pdf')
             await send_message(event.client_id, [
-                Text("你好"),
+                Text("# 你好"),
                 Text("！这是一个测试消息"),
                 image,
                 custom_file
